@@ -57,6 +57,13 @@ h1 {
   color: var(--muted);
 }
 
+.data-policy {
+  margin: 8px 0 0;
+  color: #4b463b;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .grid {
   display: grid;
   grid-template-columns: 1.1fr 0.9fr;
@@ -143,6 +150,28 @@ fieldset {
   align-items: center;
   gap: 6px;
   margin-right: 6px;
+}
+
+.hint-card {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: #fcfbf7;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.hint-card strong {
+  font-size: 0.84rem;
+}
+
+.hint-card pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: #3e3a31;
 }
 
 details {

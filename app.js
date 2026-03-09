@@ -1,6 +1,7 @@
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
+const BACKUP_VERSION = "1.0";
 const CODE_ORDER = ["S", "T", "P"];
 
 const ruinCodeConfig = {
@@ -54,6 +55,8 @@ const el = {
   form: document.getElementById("dlForm"),
   date: document.getElementById("date"),
   ruinCodesWrap: document.getElementById("ruinCodesWrap"),
+  yesterdayBTitle: document.getElementById("yesterdayBTitle"),
+  yesterdayBText: document.getElementById("yesterdayBText"),
   output: document.getElementById("output"),
   scoreboard: document.getElementById("scoreboard"),
   history: document.getElementById("history"),
@@ -90,7 +93,14 @@ const el = {
   dojoForm: document.getElementById("dojoForm"),
   dojoOutput: document.getElementById("dojoOutput"),
   copyDojoStarter: document.getElementById("copyDojoStarter"),
-  copyDojoOutput: document.getElementById("copyDojoOutput")
+  copyDojoOutput: document.getElementById("copyDojoOutput"),
+
+  exportJson: document.getElementById("exportJson"),
+  exportCsv: document.getElementById("exportCsv"),
+  exportMd: document.getElementById("exportMd"),
+  importFile: document.getElementById("importFile"),
+  importData: document.getElementById("importData"),
+  dataOutput: document.getElementById("dataOutput")
 };
 
 init();
@@ -117,11 +127,16 @@ function init() {
   bindEvents();
   renderAll(loadEntries());
   renderWorkflowPanels();
+  renderYesterdayBContext();
 }
 
 function bindEvents() {
   if (el.form) {
     el.form.addEventListener("submit", onSubmit);
+  }
+
+  if (el.date) {
+    el.date.addEventListener("change", renderYesterdayBContext);
   }
 
   if (el.quickZeroDay) {
@@ -219,6 +234,22 @@ function bindEvents() {
       copyWithFeedback(latestDojoOutputText, el.copyDojoOutput, "复制训练脚本");
     });
   }
+
+  if (el.exportJson) {
+    el.exportJson.addEventListener("click", onExportJson);
+  }
+
+  if (el.exportCsv) {
+    el.exportCsv.addEventListener("click", onExportCsv);
+  }
+
+  if (el.exportMd) {
+    el.exportMd.addEventListener("click", onExportMarkdown);
+  }
+
+  if (el.importData) {
+    el.importData.addEventListener("click", onImportData);
+  }
 }
 
 function onSubmit(event) {
@@ -238,6 +269,7 @@ function onSubmit(event) {
   const nextEntries = upsertEntryByDate(entries, entry);
   saveEntries(nextEntries);
   renderAll(nextEntries, output);
+  renderYesterdayBContext();
 }
 
 function onZeroDay() {
@@ -263,6 +295,7 @@ function onZeroDay() {
   const nextEntries = upsertEntryByDate(entries, entry);
   saveEntries(nextEntries);
   renderAll(nextEntries, output);
+  renderYesterdayBContext();
 }
 
 function onWrSubmit(event) {
@@ -358,6 +391,76 @@ function onDojoSubmit(event) {
   latestDojoStarterText = `开始训练：场景=${data.scene} 目标=${data.goal} 约束=${data.constraint}`;
   latestDojoOutputText = outputText;
   setModuleOutput(el.dojoOutput, outputText, "提交场景后显示 Dojo 5轮脚本 + 评分规则");
+}
+
+function onExportJson() {
+  const backup = buildBackupPayload();
+  const text = JSON.stringify(backup, null, 2);
+  const filename = `lifeos-backup-${localDateISO(new Date())}.json`;
+
+  downloadFile(filename, text, "application/json;charset=utf-8");
+  setModuleOutput(el.dataOutput, `已导出 JSON：${filename}`, "导出/导入结果会显示在这里");
+}
+
+function onExportCsv() {
+  const csv = buildCsvExport();
+  const filename = `lifeos-backup-${localDateISO(new Date())}.csv`;
+
+  downloadFile(filename, csv, "text/csv;charset=utf-8");
+  setModuleOutput(el.dataOutput, `已导出 CSV：${filename}`, "导出/导入结果会显示在这里");
+}
+
+function onExportMarkdown() {
+  const markdown = buildMarkdownExport();
+  const filename = `lifeos-backup-${localDateISO(new Date())}.md`;
+
+  downloadFile(filename, markdown, "text/markdown;charset=utf-8");
+  setModuleOutput(el.dataOutput, `已导出 Markdown：${filename}`, "导出/导入结果会显示在这里");
+}
+
+async function onImportData() {
+  const file = el.importFile?.files?.[0];
+  if (!file) {
+    alert("先选择一个 JSON 备份文件。");
+    return;
+  }
+
+  const ok = confirm("导入会覆盖当前本地数据（DL/WR/Patch）。确认继续？");
+  if (!ok) {
+    return;
+  }
+
+  try {
+    const raw = await file.text();
+    const parsed = JSON.parse(raw);
+    const data = parsed?.data || parsed;
+
+    const dailyLogs = ensureArray(data.dailyLogs);
+    const weeklyReviews = ensureArray(data.weeklyReviews);
+    const systemPatches = ensureArray(data.systemPatches);
+
+    saveEntries(dailyLogs);
+    saveCollection(WR_STORAGE_KEY, weeklyReviews);
+    saveCollection(PATCH_STORAGE_KEY, systemPatches);
+
+    renderAll(loadEntries());
+    renderWorkflowPanels();
+    renderYesterdayBContext();
+
+    const summary = [
+      `导入成功：${file.name}`,
+      `DL：${dailyLogs.length} 条`,
+      `WR：${weeklyReviews.length} 条`,
+      `Patch：${systemPatches.length} 条`
+    ].join(" | ");
+    setModuleOutput(el.dataOutput, summary, "导出/导入结果会显示在这里");
+  } catch (error) {
+    setModuleOutput(
+      el.dataOutput,
+      `导入失败：${String(error?.message || error)}`,
+      "导出/导入结果会显示在这里"
+    );
+  }
 }
 
 function getFormData() {
@@ -470,9 +573,16 @@ function buildMode(entry) {
 
 function buildAction(entry) {
   if (entry.ruin === 1) {
-    const mainCode = pickMainCode(entry.ruinCodes);
+    const selectedCodes = normalizeRuinCodes(entry.ruinCodes);
+    const mainCode = selectedCodes[0];
+
     if (mainCode && ruinCodeConfig[mainCode]) {
-      return ruinCodeConfig[mainCode].bSteps;
+      const steps = [...ruinCodeConfig[mainCode].bSteps];
+      const extraLines = selectedCodes
+        .slice(1)
+        .map((code) => buildSupplementRuinStep(code))
+        .filter(Boolean);
+      return [...steps, ...extraLines];
     }
 
     return [
@@ -499,18 +609,7 @@ function buildAction(entry) {
 
 function buildRisk(entry) {
   if (entry.ruin === 1) {
-    const mainCode = pickMainCode(entry.ruinCodes);
-    if (mainCode && ruinCodeConfig[mainCode]) {
-      return {
-        risk: ruinCodeConfig[mainCode].risk,
-        defense: ruinCodeConfig[mainCode].defense
-      };
-    }
-
-    return {
-      risk: "红灯信号未码化会导致防线执行不稳定。",
-      defense: "先按 P 防线执行：关键任务切成 <=5 分钟启动动作。"
-    };
+    return buildRuinRiskAndDefense(entry.ruinCodes);
   }
 
   if (entry.bExecuted === 0) {
@@ -536,6 +635,48 @@ function buildTailBet(entry) {
   }
 
   return "完成 B 后可选加 5 分钟，把 Output 从“标题+3要点”扩成一个短段落。";
+}
+
+function buildRuinRiskAndDefense(codes) {
+  const selectedCodes = normalizeRuinCodes(codes);
+  const primary = selectedCodes[0];
+
+  if (!primary || !ruinCodeConfig[primary]) {
+    return {
+      risk: "红灯信号未码化会导致防线执行不稳定。",
+      defense: "先按 P 防线执行：关键任务切成 <=5 分钟启动动作。"
+    };
+  }
+
+  if (selectedCodes.length === 1) {
+    return {
+      risk: ruinCodeConfig[primary].risk,
+      defense: ruinCodeConfig[primary].defense
+    };
+  }
+
+  const defenseLines = selectedCodes.map((code) => `${code}：${ruinCodeConfig[code].defense}`);
+  return {
+    risk: `多重红灯（${selectedCodes.join(",")}）会叠加失控风险，必须先执行全部默认防线。`,
+    defense: defenseLines.join("；")
+  };
+}
+
+function normalizeRuinCodes(codes) {
+  return CODE_ORDER.filter((code) => Array.isArray(codes) && codes.includes(code));
+}
+
+function buildSupplementRuinStep(code) {
+  if (code === "S") {
+    return "追加防线：今晚手机不进卧室，并把明日任务锁定为单一动作。";
+  }
+  if (code === "T") {
+    return "追加防线：当日默认不交易；若必须交易，风险<=0.5%且强制止损。";
+  }
+  if (code === "P") {
+    return "追加防线：关键任务只允许提交一小块，不处理非关键任务。";
+  }
+  return "";
 }
 
 function buildWrOutput(data) {
@@ -728,15 +869,6 @@ function buildDojoOutput(data) {
   ].join("\n\n");
 }
 
-function pickMainCode(codes) {
-  for (const code of CODE_ORDER) {
-    if (codes.includes(code)) {
-      return code;
-    }
-  }
-  return null;
-}
-
 function toggleRuinCodes() {
   const ruin = Number(document.querySelector("input[name='ruin']:checked")?.value || 0);
   if (ruin === 1) {
@@ -780,6 +912,38 @@ function renderWorkflowPanels() {
     latestPatchOutputText = patchEntries[0].outputText;
     setModuleOutput(el.patchOutput, latestPatchOutputText, "提交 System Patch 后显示新规则（<=3条）");
   }
+}
+
+function renderYesterdayBContext() {
+  if (!el.yesterdayBTitle || !el.yesterdayBText || !el.date) {
+    return;
+  }
+
+  const selectedDate = el.date.value || localDateISO(new Date());
+  const previousDate = shiftDateISO(selectedDate, -1);
+  const previousEntry = loadEntries().find((item) => item.date === previousDate);
+
+  if (!previousEntry) {
+    el.yesterdayBTitle.textContent = `昨日系统B（${previousDate}）：暂无记录`;
+    el.yesterdayBText.textContent = "先提交至少一天 DL-30，系统会在这里自动回填“昨天生成的B步骤”。";
+    return;
+  }
+
+  const steps = Array.isArray(previousEntry.output?.b) ? previousEntry.output.b : [];
+  if (steps.length === 0) {
+    el.yesterdayBTitle.textContent = `昨日系统B（${previousDate}）：有记录但无步骤`;
+    el.yesterdayBText.textContent = previousEntry.output?.text || "昨天没有可解析的 B 步骤，请手动回忆后选择 0/1。";
+    return;
+  }
+
+  const lines = [
+    ...steps.map((step, index) => `${index + 1}. ${step}`),
+    "",
+    `昨日行为：${previousEntry.behavior || "-"}`,
+    `昨日结果：${previousEntry.result || "-"}`
+  ];
+  el.yesterdayBTitle.textContent = `昨日系统B（${previousDate}）：请按这条B选择 0/1`;
+  el.yesterdayBText.textContent = lines.join("\n");
 }
 
 function buildScoreboard(entries) {
@@ -1037,6 +1201,130 @@ function dedupe(items) {
   return Array.from(new Set(items.filter(Boolean).map((item) => String(item).trim())));
 }
 
+function buildBackupPayload() {
+  return {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    policy: {
+      storage: "localStorage",
+      autoUpload: false,
+      note: "数据默认仅保存在当前浏览器，不自动上传服务器。"
+    },
+    data: {
+      dailyLogs: loadEntries(),
+      weeklyReviews: loadCollection(WR_STORAGE_KEY),
+      systemPatches: loadCollection(PATCH_STORAGE_KEY)
+    }
+  };
+}
+
+function buildCsvExport() {
+  const rows = [];
+  rows.push(["recordType", "primaryKey", "payloadJson", "createdAt"]);
+
+  loadEntries().forEach((entry) => {
+    rows.push([
+      "dailyLog",
+      entry.date || "",
+      JSON.stringify(entry),
+      entry.createdAt || ""
+    ]);
+  });
+
+  loadCollection(WR_STORAGE_KEY).forEach((entry) => {
+    rows.push([
+      "weeklyReview",
+      entry.weekRange || "",
+      JSON.stringify(entry),
+      entry.createdAt || ""
+    ]);
+  });
+
+  loadCollection(PATCH_STORAGE_KEY).forEach((entry) => {
+    rows.push([
+      "systemPatch",
+      entry.startDate || "",
+      JSON.stringify(entry),
+      entry.createdAt || ""
+    ]);
+  });
+
+  return rows.map((row) => row.map(toCsvCell).join(",")).join("\n");
+}
+
+function buildMarkdownExport() {
+  const daily = loadEntries();
+  const wr = loadCollection(WR_STORAGE_KEY);
+  const patches = loadCollection(PATCH_STORAGE_KEY);
+
+  const lines = [
+    "# LifeOS 数据导出",
+    "",
+    `导出时间：${new Date().toISOString()}`,
+    "数据策略：默认仅保存在当前浏览器（localStorage），此文件用于迁移备份。",
+    "",
+    "## Daily Logs"
+  ];
+
+  if (daily.length === 0) {
+    lines.push("- 无");
+  } else {
+    daily.forEach((entry) => {
+      lines.push(`- ${entry.date} | B=${entry.bExecuted} | RUIN=${entry.ruin} | 码=${(entry.ruinCodes || []).join(",") || "-"}`);
+      lines.push(`  - 行为：${entry.behavior || "-"}`);
+      lines.push(`  - 结果：${entry.result || "-"}`);
+    });
+  }
+
+  lines.push("", "## Weekly Reviews");
+  if (wr.length === 0) {
+    lines.push("- 无");
+  } else {
+    wr.forEach((entry) => {
+      lines.push(`- ${entry.weekRange || "-"} | 优先事项：${entry.priority || "-"}`);
+      lines.push(`  - 有效动作：${entry.bestAction || "-"}`);
+      lines.push(`  - 最大失控：${entry.worstLeak || "-"}`);
+    });
+  }
+
+  lines.push("", "## System Patches");
+  if (patches.length === 0) {
+    lines.push("- 无");
+  } else {
+    patches.forEach((entry) => {
+      lines.push(`- ${entry.startDate || "-"} | 改动：${entry.fix || "-"}`);
+      lines.push(`  - 卡点：${entry.bottleneck || "-"}`);
+      lines.push(`  - 断点：${entry.breakPoint || "-"}`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function ensureArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function toCsvCell(value) {
+  const text = String(value ?? "");
+  if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+function downloadFile(filename, content, contentType) {
+  const blob = new Blob([content], { type: contentType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function toNumber(value) {
   if (value === null || value === "") {
     return null;
@@ -1068,6 +1356,18 @@ function localDateISO(date) {
 
 function localMonthISO(date) {
   return localDateISO(date).slice(0, 7);
+}
+
+function shiftDateISO(dateISO, days) {
+  if (!dateISO) {
+    return localDateISO(new Date());
+  }
+  const date = new Date(`${dateISO}T00:00:00`);
+  if (Number.isNaN(date.getTime())) {
+    return localDateISO(new Date());
+  }
+  date.setDate(date.getDate() + days);
+  return localDateISO(date);
 }
 
 function defaultWeekRange(baseDate) {

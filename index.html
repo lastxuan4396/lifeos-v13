@@ -13,6 +13,9 @@
       <p class="eyebrow">PLAYBOOK ENGINE</p>
       <h1>LifeOS v1.3 Daily Engine</h1>
       <p class="subtitle">单入口：只填 DL-30，自动生成 A/B/C/D。你只执行 B。</p>
+      <p class="data-policy">
+        数据策略：默认仅保存在当前浏览器（localStorage），不会自动上传服务器。可在“数据与迁移”里导出/导入。
+      </p>
     </header>
 
     <section class="card help-card">
@@ -111,6 +114,10 @@ RUIN：0
               0（未执行）
             </label>
           </fieldset>
+          <div id="yesterdayBHint" class="hint-card">
+            <strong id="yesterdayBTitle">昨日系统B：暂无可参考数据</strong>
+            <pre id="yesterdayBText">先提交至少一天 DL-30，系统会在这里自动回填“昨天生成的B步骤”。</pre>
+          </div>
 
           <fieldset>
             <legend>RUIN</legend>
@@ -362,6 +369,26 @@ RUIN：0
           </div>
         </form>
         <pre id="dojoOutput" class="module-output empty">提交场景后显示 Dojo 5轮脚本 + 评分规则</pre>
+      </details>
+
+      <details class="flow-block">
+        <summary>数据与迁移（导出 / 导入）</summary>
+        <div class="mini-form">
+          <p class="module-note">用于跨设备备份与恢复。建议每周导出一次 JSON。</p>
+          <div class="actions">
+            <button id="exportJson" type="button">导出 JSON（完整备份）</button>
+            <button id="exportCsv" type="button">导出 CSV（表格）</button>
+            <button id="exportMd" type="button">导出 Markdown（归档）</button>
+          </div>
+          <label>
+            导入备份文件（JSON）
+            <input id="importFile" type="file" accept=".json,application/json">
+          </label>
+          <div class="actions">
+            <button id="importData" type="button" class="primary">导入并覆盖本地数据</button>
+          </div>
+        </div>
+        <pre id="dataOutput" class="module-output empty">导出/导入结果会显示在这里</pre>
       </details>
     </section>
   </main>
