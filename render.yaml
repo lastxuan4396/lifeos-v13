@@ -2,7 +2,7 @@ services:
   - type: web
     name: lifeos-v13
     runtime: static
-    plan: free
+    repo: https://github.com/lastxuan4396/lifeos-v13
     branch: main
     autoDeploy: true
     buildCommand: "echo 'No build step for static HTML'"
