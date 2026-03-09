@@ -185,6 +185,10 @@ details {
   padding: 0;
 }
 
+.quickstart {
+  margin-bottom: 8px;
+}
+
 .glossary > summary {
   cursor: pointer;
   font-size: 0.95rem;
@@ -192,6 +196,25 @@ details {
 
 .glossary[open] > summary {
   margin-bottom: 10px;
+}
+
+.quick-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.quick-list li {
+  font-size: 0.88rem;
+  color: #3d392f;
+  line-height: 1.35;
+}
+
+.quick-note {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: #4b463b;
 }
 
 .glossary-grid {
@@ -377,6 +400,30 @@ button:hover {
 
 .output .danger {
   color: var(--danger);
+}
+
+.execution-lock {
+  border: 1px solid #b8d3c6;
+  background: #f1f9f4;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.exec-label {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1b5f46;
+}
+
+.exec-focus {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #1f1e17;
 }
 
 .scoreboard {

@@ -57,11 +57,13 @@ const el = {
   ruinCodesWrap: document.getElementById("ruinCodesWrap"),
   yesterdayBTitle: document.getElementById("yesterdayBTitle"),
   yesterdayBText: document.getElementById("yesterdayBText"),
+  bFocus: document.getElementById("bFocus"),
   output: document.getElementById("output"),
   scoreboard: document.getElementById("scoreboard"),
   history: document.getElementById("history"),
   copyDl: document.getElementById("copyDl"),
   copyOutput: document.getElementById("copyOutput"),
+  copyLifeOS: document.getElementById("copyLifeOS"),
   quickZeroDay: document.getElementById("quickZeroDay"),
   historyItemTpl: document.getElementById("historyItemTpl"),
 
@@ -156,6 +158,13 @@ function bindEvents() {
         return;
       }
       copyWithFeedback(latestOutputText, el.copyOutput, "复制 A/B/C/D");
+    });
+  }
+
+  if (el.copyLifeOS) {
+    el.copyLifeOS.addEventListener("click", () => {
+      const packet = buildLifeOSPacket(getFormData(), latestOutputText);
+      copyWithFeedback(packet, el.copyLifeOS, "复制给 LifeOS");
     });
   }
 
@@ -884,6 +893,7 @@ function toggleRuinCodes() {
 
 function renderAll(entries, outputObj) {
   const output = outputObj || entries[0]?.output;
+  renderExecutionFocus(output);
 
   if (output?.text) {
     el.output.textContent = output.text;
@@ -897,6 +907,20 @@ function renderAll(entries, outputObj) {
 
   el.scoreboard.textContent = buildScoreboard(entries);
   renderHistory(entries);
+}
+
+function renderExecutionFocus(output) {
+  if (!el.bFocus) {
+    return;
+  }
+
+  if (!output || !Array.isArray(output.b) || output.b.length === 0) {
+    el.bFocus.textContent = "提交 DL-30 后，这里会锁定显示你明天唯一要做的 B。";
+    return;
+  }
+
+  const steps = output.b.slice(0, 6).map((step, index) => `${index + 1}. ${step}`);
+  el.bFocus.textContent = steps.join("\n");
 }
 
 function renderWorkflowPanels() {
@@ -1069,6 +1093,29 @@ function buildDlText(entry) {
     `RUIN：${entry.ruin}${ruinCodePart}`,
     `明日意图：${entry.intent || ""}`
   ].join("\n");
+}
+
+function buildLifeOSPacket(entry, outputText) {
+  const lines = [
+    "请按 LifeOS v1.3 验收标准输出 A/B/C/D：",
+    "1) A 只做1-2句模式判断。",
+    "2) B 必须步骤化：普通日<=15min，红灯日<=5min。",
+    "3) C 必须给“风险点 + 1条防线”；RUIN=1 时按 S/T/P 默认防线。",
+    "4) D 仅可选，不得替代 B。",
+    "",
+    "以下是我的 DL-30：",
+    buildDlText(entry)
+  ];
+
+  if (outputText) {
+    lines.push(
+      "",
+      "网站当前生成的 A/B/C/D（请校验并在必要时把 B 再缩小一步）：",
+      outputText
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function getRecentEntries(entries, days) {
