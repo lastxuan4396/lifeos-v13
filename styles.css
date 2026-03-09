@@ -68,6 +68,16 @@ h1 {
   grid-template-columns: 1fr 1fr;
 }
 
+.flow-card {
+  margin-top: 16px;
+}
+
+.flow-intro {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .card {
   border: 1px solid var(--line);
   background: linear-gradient(170deg, #fffefb, var(--card));
@@ -219,6 +229,78 @@ details {
   color: #4b463b;
 }
 
+.flow-block {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 10px;
+  background: #fff;
+}
+
+.flow-block > summary {
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.flow-block[open] > summary {
+  margin-bottom: 10px;
+}
+
+.mini-form {
+  display: grid;
+  gap: 10px;
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mini-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.micro-card {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+  background: #fcfbf7;
+}
+
+.micro-card strong {
+  font-size: 0.88rem;
+}
+
+.inline-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.module-note {
+  margin: 0;
+  color: #4a4539;
+  font-size: 0.86rem;
+}
+
+.module-output {
+  margin: 10px 0 0;
+  min-height: 120px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.module-output.empty {
+  color: var(--muted);
+}
+
 .optional-grid {
   margin-top: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -339,6 +421,11 @@ button:hover {
   }
 
   .example-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mini-grid,
+  .mini-grid.compact {
     grid-template-columns: 1fr;
   }
 }

@@ -195,6 +195,175 @@ RUIN：0
         <div id="history" class="history">暂无记录</div>
       </article>
     </section>
+
+    <section class="card flow-card">
+      <h2>完整流程工作台（周 / 双周 / 月 / 训练）</h2>
+      <p class="flow-intro">日常只跑 DL-30；下面 4 个模块按节奏触发，默认折叠，不占空间。</p>
+
+      <details class="flow-block">
+        <summary>WR-10（每周 10 分钟）</summary>
+        <form id="wrForm" class="mini-form" autocomplete="off">
+          <label>
+            周期
+            <input id="wrWeekRange" name="wrWeekRange" type="text" placeholder="Week of 2026-03-09 ~ 2026-03-15" required>
+          </label>
+          <label>
+            本周最有效动作（1条）
+            <input id="wrBestAction" name="wrBestAction" type="text" placeholder="例：每天晨间 15 分钟写作" required>
+          </label>
+          <label>
+            本周最大浪费/失控（1条）
+            <input id="wrWorstLeak" name="wrWorstLeak" type="text" placeholder="例：夜间刷手机导致晚睡" required>
+          </label>
+          <label>
+            本周模式（if-then）
+            <input id="wrIfThen" name="wrIfThen" type="text" placeholder="例：IF 晚睡 THEN 次日执行率显著下降" required>
+          </label>
+          <label>
+            下周唯一优先事项
+            <input id="wrPriority" name="wrPriority" type="text" placeholder="例：论文第二章首稿" required>
+          </label>
+
+          <div class="micro-card">
+            <strong>下周唯一实验（7天，≤15分钟/天）</strong>
+            <div class="mini-grid">
+              <label>
+                实验名
+                <input id="wrExpName" name="wrExpName" type="text" placeholder="例：晨间 15 分钟写作" required>
+              </label>
+              <label>
+                假设
+                <input id="wrExpHypothesis" name="wrExpHypothesis" type="text" placeholder="例：先写标题+3要点，输出会更稳定" required>
+              </label>
+              <label>
+                每日最小动作
+                <input id="wrExpAction" name="wrExpAction" type="text" placeholder="例：洗漱后写 15 分钟" required>
+              </label>
+              <label>
+                成功标准
+                <input id="wrExpMetric" name="wrExpMetric" type="text" placeholder="例：≥5天完成" required>
+              </label>
+            </div>
+          </div>
+
+          <label>
+            下周唯一改动（只改1条）
+            <input id="wrOneChange" name="wrOneChange" type="text" placeholder="例：晚上 23:30 手机不进卧室" required>
+          </label>
+
+          <div class="micro-card">
+            <strong>Scoreboard-5（可手填，也可一键带入近7天）</strong>
+            <div class="mini-grid compact">
+              <label>
+                DL完成
+                <input id="wrDlDone" name="wrDlDone" type="number" min="0" max="7" value="0" required>
+              </label>
+              <label>
+                B执行
+                <input id="wrBDone" name="wrBDone" type="number" min="0" max="7" value="0" required>
+              </label>
+              <label>
+                红灯天数
+                <input id="wrRuinDays" name="wrRuinDays" type="number" min="0" max="7" value="0" required>
+              </label>
+              <label>
+                S码次数
+                <input id="wrCodeS" name="wrCodeS" type="number" min="0" max="7" value="0" required>
+              </label>
+              <label>
+                T码次数
+                <input id="wrCodeT" name="wrCodeT" type="number" min="0" max="7" value="0" required>
+              </label>
+              <label>
+                P码次数
+                <input id="wrCodeP" name="wrCodeP" type="number" min="0" max="7" value="0" required>
+              </label>
+            </div>
+            <div class="inline-checks">
+              <label class="inline"><input id="wrSleepPass" name="wrSleepPass" type="checkbox"> Sleep底线达成</label>
+              <label class="inline"><input id="wrTrainingPass" name="wrTrainingPass" type="checkbox"> Training达成</label>
+              <label class="inline"><input id="wrOutputPass" name="wrOutputPass" type="checkbox"> Output达成</label>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="wrAutofill" type="button">一键带入近7天</button>
+            <button type="submit" class="primary">生成 WR-10 结果</button>
+            <button id="copyWrOutput" type="button">复制 WR-10</button>
+          </div>
+        </form>
+        <pre id="wrOutput" class="module-output empty">提交 WR-10 后显示周总结与下周执行稿</pre>
+      </details>
+
+      <details class="flow-block">
+        <summary>System Patch（每两周 5-10 分钟，只改一处）</summary>
+        <form id="patchForm" class="mini-form" autocomplete="off">
+          <label>
+            系统最卡点（1条）
+            <input id="patchBottleneck" name="patchBottleneck" type="text" placeholder="例：总在晚间才想起写 DL" required>
+          </label>
+          <label>
+            最常断点（1条）
+            <input id="patchBreak" name="patchBreak" type="text" placeholder="例：明日最小行动写得太大，无法启动" required>
+          </label>
+          <label>
+            减摩擦改动（只改一处）
+            <input id="patchFix" name="patchFix" type="text" placeholder="例：明日动作强制写成“5分钟可启动”" required>
+          </label>
+          <label>
+            从哪天执行
+            <input id="patchStartDate" name="patchStartDate" type="date" required>
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary">生成 Patch 规则</button>
+            <button id="copyPatchOutput" type="button">复制 Patch</button>
+          </div>
+        </form>
+        <pre id="patchOutput" class="module-output empty">提交 System Patch 后显示新规则（≤3条）</pre>
+      </details>
+
+      <details class="flow-block">
+        <summary>Playbook 月度升级（每月一次）</summary>
+        <div class="mini-form">
+          <label>
+            月份
+            <input id="playbookMonth" name="playbookMonth" type="month">
+          </label>
+          <p class="module-note">基于已保存的 WR / DL / Patch 自动提炼：Top动作、Top触发器、Anti-ruin、实验库。</p>
+          <div class="actions">
+            <button id="buildPlaybook" type="button" class="primary">生成 Playbook v1 草案</button>
+            <button id="copyPlaybook" type="button">复制 Playbook</button>
+          </div>
+        </div>
+        <pre id="playbookOutput" class="module-output empty">点击“生成 Playbook v1 草案”后显示</pre>
+      </details>
+
+      <details class="flow-block">
+        <summary>Dojo 5轮训练（随时 5 分钟）</summary>
+        <form id="dojoForm" class="mini-form" autocomplete="off">
+          <div class="mini-grid">
+            <label>
+              场景
+              <input id="dojoScene" name="dojoScene" type="text" placeholder="例：面试官压力追问" required>
+            </label>
+            <label>
+              目标
+              <input id="dojoGoal" name="dojoGoal" type="text" placeholder="例：30秒内讲清项目价值" required>
+            </label>
+            <label>
+              约束
+              <input id="dojoConstraint" name="dojoConstraint" type="text" placeholder="例：礼貌但坚定，不解释过多" required>
+            </label>
+          </div>
+          <div class="actions">
+            <button type="submit" class="primary">生成 5轮训练脚本</button>
+            <button id="copyDojoStarter" type="button">复制启动语句</button>
+            <button id="copyDojoOutput" type="button">复制训练脚本</button>
+          </div>
+        </form>
+        <pre id="dojoOutput" class="module-output empty">提交场景后显示 Dojo 5轮脚本 + 评分规则</pre>
+      </details>
+    </section>
   </main>
 
   <template id="historyItemTpl">
