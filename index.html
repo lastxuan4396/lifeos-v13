@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeOS v1.3 - Daily Engine</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">PLAYBOOK ENGINE</p>
+      <h1>LifeOS v1.3 Daily Engine</h1>
+      <p class="subtitle">单入口：只填 DL-30，自动生成 A/B/C/D。你只执行 B。</p>
+    </header>
+
+    <section class="grid">
+      <article class="card input-card">
+        <h2>DL-30 输入</h2>
+        <form id="dlForm" autocomplete="off">
+          <label>
+            日期
+            <input id="date" name="date" type="date" required>
+          </label>
+
+          <label>
+            行为（动词+对象+时长/次数）
+            <input id="behavior" name="behavior" type="text" placeholder="例：写论文提纲 20 分钟" required>
+          </label>
+
+          <label>
+            结果（完成/产出/指标）
+            <input id="result" name="result" type="text" placeholder="例：完成一页提纲" required>
+          </label>
+
+          <fieldset>
+            <legend>昨日B执行</legend>
+            <label class="inline">
+              <input type="radio" name="bExecuted" value="1" checked>
+              1（已执行）
+            </label>
+            <label class="inline">
+              <input type="radio" name="bExecuted" value="0">
+              0（未执行）
+            </label>
+          </fieldset>
+
+          <fieldset>
+            <legend>RUIN</legend>
+            <label class="inline">
+              <input type="radio" name="ruin" value="0" checked>
+              0（无红灯）
+            </label>
+            <label class="inline">
+              <input type="radio" name="ruin" value="1">
+              1（红灯）
+            </label>
+          </fieldset>
+
+          <fieldset id="ruinCodesWrap" class="hidden">
+            <legend>RUIN 码（可多选）</legend>
+            <label class="inline">
+              <input type="checkbox" name="ruinCodes" value="S">
+              S（Sleep）
+            </label>
+            <label class="inline">
+              <input type="checkbox" name="ruinCodes" value="T">
+              T（Trading）
+            </label>
+            <label class="inline">
+              <input type="checkbox" name="ruinCodes" value="P">
+              P（Priority Drop）
+            </label>
+          </fieldset>
+
+          <label>
+            明日意图（可空）
+            <input id="intent" name="intent" type="text" placeholder="例：把文献综述改成 3 段">
+          </label>
+
+          <details>
+            <summary>可选指标（用于周看板自动统计）</summary>
+            <div class="optional-grid">
+              <label>
+                睡眠（小时）
+                <input id="sleepHours" name="sleepHours" type="number" step="0.1" min="0" max="24" placeholder="7.2">
+              </label>
+              <label>
+                训练分钟
+                <input id="trainingMinutes" name="trainingMinutes" type="number" min="0" placeholder="30">
+              </label>
+              <label>
+                深度工作分钟
+                <input id="deepWorkMinutes" name="deepWorkMinutes" type="number" min="0" placeholder="45">
+              </label>
+              <label>
+                输出字数
+                <input id="outputWords" name="outputWords" type="number" min="0" placeholder="300">
+              </label>
+            </div>
+          </details>
+
+          <div class="actions">
+            <button type="submit" class="primary">生成 A/B/C/D 并保存</button>
+            <button id="quickZeroDay" type="button">Zero-Day 一键记录</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="card output-card">
+        <h2>LifeOS 输出（验收标准）</h2>
+        <div id="output" class="output empty">提交 DL-30 后显示 A/B/C/D</div>
+        <div class="actions">
+          <button id="copyDl" type="button">复制 DL-30</button>
+          <button id="copyOutput" type="button">复制 A/B/C/D</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid bottom-grid">
+      <article class="card">
+        <h2>Scoreboard-5 v1.3（近7天）</h2>
+        <pre id="scoreboard" class="scoreboard">暂无数据</pre>
+      </article>
+
+      <article class="card">
+        <h2>最近记录</h2>
+        <div id="history" class="history">暂无记录</div>
+      </article>
+    </section>
+  </main>
+
+  <template id="historyItemTpl">
+    <article class="history-item">
+      <div class="history-meta"></div>
+      <div class="history-text"></div>
+    </article>
+  </template>
+
+  <script src="./app.js" defer></script>
+</body>
+</html>
