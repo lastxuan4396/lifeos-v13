@@ -358,6 +358,18 @@ details {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.intent-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -2px;
+}
+
+.intent-tools button {
+  padding: 8px 10px;
+  font-size: 0.84rem;
+}
+
 .apple-sync {
   margin-top: 10px;
   border: 1px dashed var(--line);

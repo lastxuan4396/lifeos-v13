@@ -55,6 +55,10 @@ let latestDojoStarterText = "";
 const el = {
   form: document.getElementById("dlForm"),
   date: document.getElementById("date"),
+  intent: document.getElementById("intent"),
+  intentDefault: document.getElementById("intentDefault"),
+  intentCarry: document.getElementById("intentCarry"),
+  intentVoice: document.getElementById("intentVoice"),
   sleepHours: document.getElementById("sleepHours"),
   trainingMinutes: document.getElementById("trainingMinutes"),
   deepWorkMinutes: document.getElementById("deepWorkMinutes"),
@@ -176,6 +180,18 @@ function bindEvents() {
       const packet = buildLifeOSPacket(getFormData(), latestOutputText);
       copyWithFeedback(packet, el.copyLifeOS, "复制给 LifeOS");
     });
+  }
+
+  if (el.intentDefault) {
+    el.intentDefault.addEventListener("click", onIntentDefault);
+  }
+
+  if (el.intentCarry) {
+    el.intentCarry.addEventListener("click", onIntentCarry);
+  }
+
+  if (el.intentVoice) {
+    el.intentVoice.addEventListener("click", onIntentVoice);
   }
 
   if (el.copyAppleTemplate) {
@@ -512,6 +528,92 @@ async function onCopyAppleTemplate() {
   await copyWithFeedback(template, el.copyAppleTemplate, "复制快捷指令 URL 模板");
 }
 
+function onIntentDefault() {
+  if (!el.intent) {
+    return;
+  }
+  el.intent.value = "";
+  flashButton(el.intentDefault, "已切默认B");
+}
+
+function onIntentCarry() {
+  if (!el.intent || !el.date) {
+    return;
+  }
+
+  const selectedDate = el.date.value || localDateISO(new Date());
+  const previousDate = shiftDateISO(selectedDate, -1);
+  const previousEntry = loadEntries().find((item) => item.date === previousDate);
+
+  if (!previousEntry) {
+    alert("昨天没有记录，无法沿用。可直接点“不用写（默认B）”。");
+    return;
+  }
+
+  const carryText = buildCarryIntent(previousEntry);
+  el.intent.value = carryText;
+  flashButton(el.intentCarry, "已沿用");
+}
+
+function onIntentVoice() {
+  if (!el.intentVoice || !el.intent) {
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("当前浏览器不支持语音输入。可改用“沿用昨天”或“默认B”。");
+    return;
+  }
+
+  const rec = new SpeechRecognition();
+  rec.lang = "zh-CN";
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  rec.continuous = false;
+
+  el.intentVoice.disabled = true;
+  const origin = el.intentVoice.textContent;
+  el.intentVoice.textContent = "正在听...";
+  let done = false;
+  let safetyTimer = null;
+
+  const restore = () => {
+    if (done) {
+      return;
+    }
+    done = true;
+    if (safetyTimer) {
+      clearTimeout(safetyTimer);
+      safetyTimer = null;
+    }
+    el.intentVoice.disabled = false;
+    el.intentVoice.textContent = origin;
+  };
+
+  rec.onresult = (event) => {
+    const text = String(event.results?.[0]?.[0]?.transcript || "").trim();
+    if (text) {
+      el.intent.value = text;
+    }
+  };
+
+  rec.onerror = () => {
+    alert("语音识别失败，请再试一次。");
+    restore();
+  };
+
+  rec.onend = () => {
+    restore();
+  };
+
+  safetyTimer = setTimeout(() => {
+    restore();
+  }, 10000);
+
+  rec.start();
+}
+
 function applyAppleAutofillFromUrl() {
   const params = new URLSearchParams(window.location.search);
   if (!params || params.toString().length === 0) {
@@ -704,6 +806,20 @@ function getFormData() {
     deepWorkMinutes: toNumber(fd.get("deepWorkMinutes")),
     outputWords: toNumber(fd.get("outputWords"))
   };
+}
+
+function buildCarryIntent(previousEntry) {
+  const behavior = String(previousEntry.behavior || "").trim();
+  if (behavior) {
+    return `继续昨天这块：${behavior}`;
+  }
+
+  const firstStep = String(previousEntry.output?.b?.[0] || "").trim();
+  if (firstStep) {
+    return `沿用昨天步骤：${firstStep}`;
+  }
+
+  return "继续昨天同一块";
 }
 
 function getWrData() {
@@ -1661,4 +1777,15 @@ async function copyWithFeedback(text, button, fallbackLabel) {
       button.textContent = fallbackLabel;
     }, 1200);
   }
+}
+
+function flashButton(button, text) {
+  if (!button) {
+    return;
+  }
+  const origin = button.textContent;
+  button.textContent = text;
+  setTimeout(() => {
+    button.textContent = origin;
+  }, 900);
 }
