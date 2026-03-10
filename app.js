@@ -2,6 +2,8 @@ const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
 const APPLE_SYNC_META_KEY = "lifeos_v13_apple_sync_meta";
+const SYNC_SETTINGS_KEY = "lifeos_v13_sync_settings";
+const SYNC_FILENAME = "lifeos-sync.json";
 const BACKUP_VERSION = "1.0";
 const CODE_ORDER = ["S", "T", "P"];
 
@@ -64,11 +66,20 @@ const el = {
   trainingMinutes: document.getElementById("trainingMinutes"),
   deepWorkMinutes: document.getElementById("deepWorkMinutes"),
   outputWords: document.getElementById("outputWords"),
+  appUsageMinutes: document.getElementById("appUsageMinutes"),
+  phoneUsageMinutes: document.getElementById("phoneUsageMinutes"),
+  macUsageMinutes: document.getElementById("macUsageMinutes"),
+  topAppName: document.getElementById("topAppName"),
+  topAppMinutes: document.getElementById("topAppMinutes"),
+  steps: document.getElementById("steps"),
+  activeCalories: document.getElementById("activeCalories"),
+  distanceKm: document.getElementById("distanceKm"),
   ruinCodesWrap: document.getElementById("ruinCodesWrap"),
   yesterdayBTitle: document.getElementById("yesterdayBTitle"),
   yesterdayBText: document.getElementById("yesterdayBText"),
   bFocus: document.getElementById("bFocus"),
   copyAppleTemplate: document.getElementById("copyAppleTemplate"),
+  copyMacBridgeCmd: document.getElementById("copyMacBridgeCmd"),
   appleSyncStatus: document.getElementById("appleSyncStatus"),
   output: document.getElementById("output"),
   scoreboard: document.getElementById("scoreboard"),
@@ -114,7 +125,15 @@ const el = {
   exportMd: document.getElementById("exportMd"),
   importFile: document.getElementById("importFile"),
   importData: document.getElementById("importData"),
-  dataOutput: document.getElementById("dataOutput")
+  dataOutput: document.getElementById("dataOutput"),
+
+  syncToken: document.getElementById("syncToken"),
+  syncGistId: document.getElementById("syncGistId"),
+  syncAuto: document.getElementById("syncAuto"),
+  syncSave: document.getElementById("syncSave"),
+  syncInit: document.getElementById("syncInit"),
+  syncNow: document.getElementById("syncNow"),
+  syncOutput: document.getElementById("syncOutput")
 };
 
 init();
@@ -139,12 +158,14 @@ function init() {
   }
 
   bindEvents();
+  hydrateSyncSettingsForm();
   applyAppleAutofillFromUrl();
   hydrateMetricsFromLastAppleSync();
   renderAll(loadEntries());
   renderWorkflowPanels();
   renderYesterdayBContext();
   renderAppleSyncStatus();
+  renderSyncStatus();
 }
 
 function bindEvents() {
@@ -201,6 +222,10 @@ function bindEvents() {
 
   if (el.copyAppleTemplate) {
     el.copyAppleTemplate.addEventListener("click", onCopyAppleTemplate);
+  }
+
+  if (el.copyMacBridgeCmd) {
+    el.copyMacBridgeCmd.addEventListener("click", onCopyMacBridgeCmd);
   }
 
   const ruinRadios = document.querySelectorAll("input[name='ruin']");
@@ -294,6 +319,18 @@ function bindEvents() {
   if (el.importData) {
     el.importData.addEventListener("click", onImportData);
   }
+
+  if (el.syncSave) {
+    el.syncSave.addEventListener("click", onSyncSaveSettings);
+  }
+
+  if (el.syncInit) {
+    el.syncInit.addEventListener("click", onSyncInitCloud);
+  }
+
+  if (el.syncNow) {
+    el.syncNow.addEventListener("click", onSyncNow);
+  }
 }
 
 function onSubmit(event) {
@@ -314,6 +351,7 @@ function onSubmit(event) {
   saveEntries(nextEntries);
   renderAll(nextEntries, output);
   renderYesterdayBContext();
+  void maybeAutoSync("DL");
 }
 
 function onZeroDay() {
@@ -340,6 +378,7 @@ function onZeroDay() {
   saveEntries(nextEntries);
   renderAll(nextEntries, output);
   renderYesterdayBContext();
+  void maybeAutoSync("Zero-Day");
 }
 
 function onWrSubmit(event) {
@@ -359,6 +398,7 @@ function onWrSubmit(event) {
 
   const next = upsertByKey(entries, entry, "weekRange");
   saveCollection(WR_STORAGE_KEY, next);
+  void maybeAutoSync("WR-10");
 }
 
 function onWrAutofill() {
@@ -413,6 +453,7 @@ function onPatchSubmit(event) {
     createdAt: new Date().toISOString()
   });
   saveCollection(PATCH_STORAGE_KEY, entries.slice(0, 30));
+  void maybeAutoSync("Patch");
 }
 
 function onBuildPlaybook() {
@@ -499,6 +540,7 @@ async function onImportData() {
     renderWorkflowPanels();
     renderYesterdayBContext();
     renderAppleSyncStatus();
+    renderSyncStatus();
 
     const summary = [
       `导入成功：${file.name}`,
@@ -517,6 +559,349 @@ async function onImportData() {
   }
 }
 
+function loadSyncSettings() {
+  try {
+    const raw = localStorage.getItem(SYNC_SETTINGS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return {
+      token: String(parsed?.token || ""),
+      gistId: String(parsed?.gistId || ""),
+      auto: Boolean(parsed?.auto)
+    };
+  } catch {
+    return { token: "", gistId: "", auto: false };
+  }
+}
+
+function saveSyncSettings(settings) {
+  localStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify({
+    token: settings.token || "",
+    gistId: settings.gistId || "",
+    auto: Boolean(settings.auto)
+  }));
+}
+
+function getSyncSettingsFromForm() {
+  const current = loadSyncSettings();
+  const tokenInput = String(el.syncToken?.value || "").trim();
+  const gistInput = String(el.syncGistId?.value || "").trim();
+  return {
+    token: tokenInput || current.token || "",
+    gistId: gistInput || "",
+    auto: Boolean(el.syncAuto?.checked)
+  };
+}
+
+function hydrateSyncSettingsForm() {
+  const settings = loadSyncSettings();
+  if (el.syncToken) {
+    el.syncToken.value = settings.token;
+  }
+  if (el.syncGistId) {
+    el.syncGistId.value = settings.gistId;
+  }
+  if (el.syncAuto) {
+    el.syncAuto.checked = settings.auto;
+  }
+}
+
+function renderSyncStatus(overrideMessage) {
+  if (!el.syncOutput) {
+    return;
+  }
+
+  if (overrideMessage) {
+    setModuleOutput(el.syncOutput, overrideMessage, "尚未配置云同步");
+    return;
+  }
+
+  const settings = loadSyncSettings();
+  if (!settings.gistId || !settings.token) {
+    setModuleOutput(el.syncOutput, "", "尚未配置云同步");
+    return;
+  }
+
+  const lines = [
+    "云同步已配置",
+    `Gist ID：${settings.gistId}`,
+    `自动同步：${settings.auto ? "开启" : "关闭"}`,
+    "建议：两端都点一次“同步现在（先拉后推）”后再开始日常使用。"
+  ];
+  setModuleOutput(el.syncOutput, lines.join("\n"), "尚未配置云同步");
+}
+
+function onSyncSaveSettings() {
+  const settings = getSyncSettingsFromForm();
+  saveSyncSettings(settings);
+  const lines = [
+    "同步配置已保存",
+    `Gist ID：${settings.gistId || "(未填)"}`,
+    `自动同步：${settings.auto ? "开启" : "关闭"}`
+  ];
+  renderSyncStatus(lines.join("\n"));
+}
+
+async function onSyncInitCloud() {
+  const settings = getSyncSettingsFromForm();
+  if (!settings.token) {
+    alert("先填写 GitHub Token。");
+    return;
+  }
+
+  try {
+    const payload = buildBackupPayload();
+    const gistId = await createCloudGist(settings.token, payload);
+    const next = { ...settings, gistId };
+    saveSyncSettings(next);
+    hydrateSyncSettingsForm();
+    renderSyncStatus(`初始化完成：已创建云仓\nGist ID：${gistId}\n现在可点“同步现在（先拉后推）”。`);
+  } catch (error) {
+    renderSyncStatus(`初始化失败：${String(error?.message || error)}`);
+  }
+}
+
+async function onSyncNow() {
+  const settings = getSyncSettingsFromForm();
+  if (!settings.token || !settings.gistId) {
+    alert("先填写 Token 和 Gist ID，或点“初始化云仓”。");
+    return;
+  }
+  saveSyncSettings(settings);
+  await syncNowInternal(settings, { reason: "手动同步", showStatus: true });
+}
+
+async function maybeAutoSync(reason) {
+  const settings = loadSyncSettings();
+  if (!settings.auto || !settings.token || !settings.gistId) {
+    return;
+  }
+  await syncNowInternal(settings, { reason: `自动同步(${reason})`, showStatus: false });
+}
+
+async function syncNowInternal(settings, options = {}) {
+  const reason = options.reason || "同步";
+  const showStatus = options.showStatus !== false;
+
+  try {
+    const local = buildBackupPayload();
+    const cloud = await fetchCloudPayload(settings);
+    const merged = mergeLocalAndCloud(local, cloud);
+    applyMergedPayload(merged);
+    await pushCloudPayload(settings, merged);
+
+    if (showStatus) {
+      const data = merged.data || {};
+      const lines = [
+        `${reason}完成`,
+        `DL：${ensureArray(data.dailyLogs).length} 条`,
+        `WR：${ensureArray(data.weeklyReviews).length} 条`,
+        `Patch：${ensureArray(data.systemPatches).length} 条`
+      ];
+      renderSyncStatus(lines.join("\n"));
+    }
+  } catch (error) {
+    if (showStatus) {
+      renderSyncStatus(`${reason}失败：${String(error?.message || error)}`);
+    } else {
+      console.warn("auto sync failed", error);
+    }
+  }
+}
+
+async function createCloudGist(token, payload) {
+  const body = {
+    description: "LifeOS v1.3 sync",
+    public: false,
+    files: {
+      [SYNC_FILENAME]: {
+        content: JSON.stringify(payload, null, 2)
+      }
+    }
+  };
+
+  const res = await githubFetchJson("https://api.github.com/gists", token, {
+    method: "POST",
+    body: JSON.stringify(body)
+  });
+
+  const gistId = String(res?.id || "").trim();
+  if (!gistId) {
+    throw new Error("创建 Gist 失败：未返回 Gist ID");
+  }
+  return gistId;
+}
+
+async function fetchCloudPayload(settings) {
+  const gist = await githubFetchJson(`https://api.github.com/gists/${settings.gistId}`, settings.token);
+  const files = gist?.files || {};
+  let file = files[SYNC_FILENAME];
+  if (!file) {
+    const first = Object.values(files)[0];
+    file = first || null;
+  }
+  if (!file) {
+    throw new Error("云仓中没有可用的同步文件。");
+  }
+
+  let content = String(file.content || "");
+  if (file.truncated && file.raw_url) {
+    const rawRes = await fetch(file.raw_url, { headers: { Accept: "application/json,text/plain;q=0.9,*/*;q=0.8" } });
+    content = await rawRes.text();
+  }
+
+  const parsed = JSON.parse(content);
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("云端同步文件格式无效。");
+  }
+  return parsed;
+}
+
+async function pushCloudPayload(settings, payload) {
+  const body = {
+    files: {
+      [SYNC_FILENAME]: {
+        content: JSON.stringify(payload, null, 2)
+      }
+    }
+  };
+
+  await githubFetchJson(`https://api.github.com/gists/${settings.gistId}`, settings.token, {
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+}
+
+async function githubFetchJson(url, token, options = {}) {
+  const headers = {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+    ...(options.headers || {})
+  };
+
+  const res = await fetch(url, {
+    ...options,
+    headers
+  });
+
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    const msg = data?.message || text || `${res.status} ${res.statusText}`;
+    throw new Error(`GitHub API 错误：${msg}`);
+  }
+
+  return data;
+}
+
+function mergeLocalAndCloud(localPayload, cloudPayload) {
+  const local = (localPayload && localPayload.data) ? localPayload.data : {};
+  const cloud = (cloudPayload && cloudPayload.data) ? cloudPayload.data : cloudPayload;
+
+  const mergedDaily = mergeByKey(
+    ensureArray(local.dailyLogs),
+    ensureArray(cloud?.dailyLogs),
+    (item) => item?.date || `${item?.createdAt || ""}|${item?.behavior || ""}`
+  ).sort((a, b) => {
+    if (a.date === b.date) {
+      return (b.createdAt || "").localeCompare(a.createdAt || "");
+    }
+    return String(b.date || "").localeCompare(String(a.date || ""));
+  });
+
+  const mergedWeekly = mergeByKey(
+    ensureArray(local.weeklyReviews),
+    ensureArray(cloud?.weeklyReviews),
+    (item) => item?.weekRange || item?.createdAt || JSON.stringify(item)
+  ).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+  const mergedPatches = mergeByKey(
+    ensureArray(local.systemPatches),
+    ensureArray(cloud?.systemPatches),
+    (item) => `${item?.startDate || ""}|${item?.fix || ""}|${item?.createdAt || ""}`
+  ).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+
+  const appleSyncMeta = pickNewestMeta(local.appleSyncMeta, cloud?.appleSyncMeta);
+
+  return {
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    policy: {
+      storage: "mixed",
+      autoUpload: false,
+      note: "Cloud sync via GitHub Gist"
+    },
+    data: {
+      dailyLogs: mergedDaily,
+      weeklyReviews: mergedWeekly,
+      systemPatches: mergedPatches,
+      appleSyncMeta
+    }
+  };
+}
+
+function mergeByKey(localList, cloudList, keyFn) {
+  const map = new Map();
+  const all = [...ensureArray(localList), ...ensureArray(cloudList)];
+
+  all.forEach((item) => {
+    const key = String(keyFn(item) || "");
+    if (!key) {
+      return;
+    }
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, item);
+      return;
+    }
+    const existingTs = String(existing?.createdAt || "");
+    const currentTs = String(item?.createdAt || "");
+    if (currentTs >= existingTs) {
+      map.set(key, item);
+    }
+  });
+
+  return Array.from(map.values());
+}
+
+function pickNewestMeta(localMeta, cloudMeta) {
+  if (!localMeta) {
+    return cloudMeta || null;
+  }
+  if (!cloudMeta) {
+    return localMeta;
+  }
+  const localTs = String(localMeta.syncedAt || "");
+  const cloudTs = String(cloudMeta.syncedAt || "");
+  return cloudTs >= localTs ? cloudMeta : localMeta;
+}
+
+function applyMergedPayload(payload) {
+  const data = payload?.data || payload || {};
+  const dailyLogs = ensureArray(data.dailyLogs);
+  const weeklyReviews = ensureArray(data.weeklyReviews);
+  const systemPatches = ensureArray(data.systemPatches);
+
+  saveEntries(dailyLogs);
+  saveCollection(WR_STORAGE_KEY, weeklyReviews);
+  saveCollection(PATCH_STORAGE_KEY, systemPatches);
+
+  if (data.appleSyncMeta && typeof data.appleSyncMeta === "object") {
+    localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(data.appleSyncMeta));
+  }
+
+  renderAll(loadEntries());
+  renderWorkflowPanels();
+  renderYesterdayBContext();
+  renderAppleSyncStatus();
+}
+
 async function onCopyAppleTemplate() {
   const base = `${window.location.origin}${window.location.pathname}`;
   const today = localDateISO(new Date());
@@ -527,10 +912,25 @@ async function onCopyAppleTemplate() {
     "trainingMinutes={{exerciseMinutes}}",
     "deepWorkMinutes={{studyMinutes}}",
     "outputWords={{outputWords}}",
+    "steps={{steps}}",
+    "activeCalories={{activeCalories}}",
+    "distanceKm={{distanceKm}}",
+    "appUsageMinutes={{appUsageMinutes}}",
+    "phoneUsageMinutes={{phoneUsageMinutes}}",
+    "topAppName={{topAppName}}",
+    "topAppMinutes={{topAppMinutes}}",
     "autoRuin=1"
   ].join("&");
 
   await copyWithFeedback(template, el.copyAppleTemplate, "复制快捷指令 URL 模板");
+}
+
+async function onCopyMacBridgeCmd() {
+  const cmd = [
+    "cd /Users/xiaoxuan/Documents/Playground/lifeos-v13",
+    "python3 scripts/macos_usage_bridge.py --open"
+  ].join(" && ");
+  await copyWithFeedback(cmd, el.copyMacBridgeCmd, "复制 Mac 自动采集命令");
 }
 
 function onIntentDefault() {
@@ -688,7 +1088,15 @@ function applyAppleAutofillFromUrl() {
     sleepHours: getFirstNumericParam(params, ["sleepHours", "sleep", "sleep_h"]),
     trainingMinutes: getFirstNumericParam(params, ["trainingMinutes", "exerciseMinutes", "workoutMinutes"]),
     deepWorkMinutes: getFirstNumericParam(params, ["deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes"]),
-    outputWords: getFirstNumericParam(params, ["outputWords", "words", "writingWords"])
+    outputWords: getFirstNumericParam(params, ["outputWords", "words", "writingWords"]),
+    appUsageMinutes: getFirstNumericParam(params, ["appUsageMinutes", "softwareUsageMinutes", "usageMinutes", "screenMinutes"]),
+    phoneUsageMinutes: getFirstNumericParam(params, ["phoneUsageMinutes", "mobileUsageMinutes", "iosUsageMinutes"]),
+    macUsageMinutes: getFirstNumericParam(params, ["macUsageMinutes", "desktopUsageMinutes"]),
+    topAppName: String(params.get("topAppName") || params.get("topApp") || "").trim(),
+    topAppMinutes: getFirstNumericParam(params, ["topAppMinutes", "topAppUsageMinutes"]),
+    steps: getFirstNumericParam(params, ["steps", "stepCount"]),
+    activeCalories: getFirstNumericParam(params, ["activeCalories", "calories", "moveCalories"]),
+    distanceKm: getFirstNumericParam(params, ["distanceKm", "workoutDistanceKm", "distance"])
   };
 
   let metricTouched = 0;
@@ -702,6 +1110,31 @@ function applyAppleAutofillFromUrl() {
     metricTouched += 1;
   }
   if (setNumericInputValue(el.outputWords, payload.outputWords)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.appUsageMinutes, payload.appUsageMinutes)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.phoneUsageMinutes, payload.phoneUsageMinutes)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.macUsageMinutes, payload.macUsageMinutes)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.topAppMinutes, payload.topAppMinutes)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.steps, payload.steps)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.activeCalories, payload.activeCalories)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.distanceKm, payload.distanceKm)) {
+    metricTouched += 1;
+  }
+  if (el.topAppName && payload.topAppName) {
+    el.topAppName.value = payload.topAppName;
     metricTouched += 1;
   }
 
@@ -733,7 +1166,15 @@ function applyAppleAutofillFromUrl() {
       sleepHours: payload.sleepHours,
       trainingMinutes: payload.trainingMinutes,
       deepWorkMinutes: payload.deepWorkMinutes,
-      outputWords: payload.outputWords
+      outputWords: payload.outputWords,
+      appUsageMinutes: payload.appUsageMinutes,
+      phoneUsageMinutes: payload.phoneUsageMinutes,
+      macUsageMinutes: payload.macUsageMinutes,
+      topAppName: payload.topAppName,
+      topAppMinutes: payload.topAppMinutes,
+      steps: payload.steps,
+      activeCalories: payload.activeCalories,
+      distanceKm: payload.distanceKm
     }
   };
 
@@ -767,17 +1208,39 @@ function renderAppleSyncStatus(metaOverride) {
 
   const metrics = raw.metrics || {};
   const metricParts = [];
-  if (Number.isFinite(Number(metrics.sleepHours))) {
+  if (hasMetricValue(metrics.sleepHours)) {
     metricParts.push(`睡眠 ${Number(metrics.sleepHours)}h`);
   }
-  if (Number.isFinite(Number(metrics.trainingMinutes))) {
+  if (hasMetricValue(metrics.trainingMinutes)) {
     metricParts.push(`训练 ${Number(metrics.trainingMinutes)}min`);
   }
-  if (Number.isFinite(Number(metrics.deepWorkMinutes))) {
+  if (hasMetricValue(metrics.deepWorkMinutes)) {
     metricParts.push(`学习/深度工作 ${Number(metrics.deepWorkMinutes)}min`);
   }
-  if (Number.isFinite(Number(metrics.outputWords))) {
+  if (hasMetricValue(metrics.outputWords)) {
     metricParts.push(`输出 ${Number(metrics.outputWords)}字`);
+  }
+  if (hasMetricValue(metrics.appUsageMinutes)) {
+    metricParts.push(`软件使用 ${Number(metrics.appUsageMinutes)}min`);
+  }
+  if (hasMetricValue(metrics.phoneUsageMinutes)) {
+    metricParts.push(`手机使用 ${Number(metrics.phoneUsageMinutes)}min`);
+  }
+  if (hasMetricValue(metrics.macUsageMinutes)) {
+    metricParts.push(`电脑使用 ${Number(metrics.macUsageMinutes)}min`);
+  }
+  if (metrics.topAppName) {
+    const topMins = hasMetricValue(metrics.topAppMinutes) ? ` ${Number(metrics.topAppMinutes)}min` : "";
+    metricParts.push(`头号应用 ${metrics.topAppName}${topMins}`);
+  }
+  if (hasMetricValue(metrics.steps)) {
+    metricParts.push(`步数 ${Number(metrics.steps)}`);
+  }
+  if (hasMetricValue(metrics.activeCalories)) {
+    metricParts.push(`活动卡路里 ${Number(metrics.activeCalories)}`);
+  }
+  if (hasMetricValue(metrics.distanceKm)) {
+    metricParts.push(`距离 ${Number(metrics.distanceKm)}km`);
   }
   if (metricParts.length > 0) {
     rows.push(`已带入：${metricParts.join(" | ")}`);
@@ -801,6 +1264,16 @@ function hydrateMetricsFromLastAppleSync() {
   setNumericInputIfEmpty(el.trainingMinutes, meta.metrics.trainingMinutes);
   setNumericInputIfEmpty(el.deepWorkMinutes, meta.metrics.deepWorkMinutes);
   setNumericInputIfEmpty(el.outputWords, meta.metrics.outputWords);
+  setNumericInputIfEmpty(el.appUsageMinutes, meta.metrics.appUsageMinutes);
+  setNumericInputIfEmpty(el.phoneUsageMinutes, meta.metrics.phoneUsageMinutes);
+  setNumericInputIfEmpty(el.macUsageMinutes, meta.metrics.macUsageMinutes);
+  setNumericInputIfEmpty(el.topAppMinutes, meta.metrics.topAppMinutes);
+  setNumericInputIfEmpty(el.steps, meta.metrics.steps);
+  setNumericInputIfEmpty(el.activeCalories, meta.metrics.activeCalories);
+  setNumericInputIfEmpty(el.distanceKm, meta.metrics.distanceKm);
+  if (el.topAppName && el.topAppName.value === "" && meta.metrics.topAppName) {
+    el.topAppName.value = String(meta.metrics.topAppName);
+  }
 }
 
 function loadAppleSyncMeta() {
@@ -877,7 +1350,15 @@ function getFormData() {
     sleepHours: toNumber(fd.get("sleepHours")),
     trainingMinutes: toNumber(fd.get("trainingMinutes")),
     deepWorkMinutes: toNumber(fd.get("deepWorkMinutes")),
-    outputWords: toNumber(fd.get("outputWords"))
+    outputWords: toNumber(fd.get("outputWords")),
+    appUsageMinutes: toNumber(fd.get("appUsageMinutes")),
+    phoneUsageMinutes: toNumber(fd.get("phoneUsageMinutes")),
+    macUsageMinutes: toNumber(fd.get("macUsageMinutes")),
+    topAppName: String(fd.get("topAppName") || "").trim(),
+    topAppMinutes: toNumber(fd.get("topAppMinutes")),
+    steps: toNumber(fd.get("steps")),
+    activeCalories: toNumber(fd.get("activeCalories")),
+    distanceKm: toNumber(fd.get("distanceKm"))
   };
 }
 
@@ -1489,14 +1970,31 @@ function renderHistory(entries) {
 
 function buildDlText(entry) {
   const ruinCodePart = entry.ruin === 1 ? `；码=${entry.ruinCodes.join(",") || "(未填)"}` : "";
+  const deviceParts = [];
+  if (hasMetricValue(entry.sleepHours)) deviceParts.push(`睡眠${entry.sleepHours}h`);
+  if (hasMetricValue(entry.trainingMinutes)) deviceParts.push(`训练${entry.trainingMinutes}min`);
+  if (hasMetricValue(entry.deepWorkMinutes)) deviceParts.push(`深度工作${entry.deepWorkMinutes}min`);
+  if (hasMetricValue(entry.outputWords)) deviceParts.push(`输出${entry.outputWords}字`);
+  if (hasMetricValue(entry.appUsageMinutes)) deviceParts.push(`软件使用${entry.appUsageMinutes}min`);
+  if (hasMetricValue(entry.phoneUsageMinutes)) deviceParts.push(`手机${entry.phoneUsageMinutes}min`);
+  if (hasMetricValue(entry.macUsageMinutes)) deviceParts.push(`电脑${entry.macUsageMinutes}min`);
+  if (entry.topAppName) {
+    const topMins = hasMetricValue(entry.topAppMinutes) ? `${entry.topAppMinutes}min` : "";
+    deviceParts.push(`头号应用${entry.topAppName}${topMins ? `(${topMins})` : ""}`);
+  }
+  if (hasMetricValue(entry.steps)) deviceParts.push(`步数${entry.steps}`);
+  if (hasMetricValue(entry.activeCalories)) deviceParts.push(`卡路里${entry.activeCalories}`);
+  if (hasMetricValue(entry.distanceKm)) deviceParts.push(`距离${entry.distanceKm}km`);
+
   return [
     `DL-30 | ${entry.date || localDateISO(new Date())}`,
     `行为：${entry.behavior || ""}`,
     `结果：${entry.result || ""}`,
     `昨日B执行：${entry.bExecuted}`,
     `RUIN：${entry.ruin}${ruinCodePart}`,
-    `明日意图：${entry.intent || ""}`
-  ].join("\n");
+    `明日意图：${entry.intent || ""}`,
+    deviceParts.length > 0 ? `设备数据：${deviceParts.join(" | ")}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function buildLifeOSPacket(entry, outputText) {
@@ -1788,6 +2286,13 @@ function toNumber(value) {
 function toInt(value, fallback = 0) {
   const n = Number(value);
   return Number.isFinite(n) ? Math.round(n) : fallback;
+}
+
+function hasMetricValue(value) {
+  if (value === null || value === undefined || value === "") {
+    return false;
+  }
+  return Number.isFinite(Number(value));
 }
 
 function clamp(value, min, max) {

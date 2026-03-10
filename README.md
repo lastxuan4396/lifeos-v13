@@ -39,3 +39,29 @@ python3 -m http.server 5193
 ## 5) Zero-Day
 
 如果当天很忙，只填“行为 + 结果”，点 `Zero-Day 一键记录` 也算不断更。
+
+## 6) 数据桥（V2）
+
+已支持设备数据自动回填（URL 参数注入）：
+
+- 睡眠/训练/步数/卡路里/距离
+- 软件使用总分钟、手机分钟、电脑分钟、头号应用
+
+Mac 一键采集当天应用用时并打开网页：
+
+```bash
+python3 /Users/xiaoxuan/Documents/Playground/lifeos-v13/scripts/macos_usage_bridge.py --open
+```
+
+完整说明见：
+
+- `/Users/xiaoxuan/Documents/Playground/lifeos-v13/docs/LifeOS_Data_Bridge_v2.md`
+
+## 7) 多端云同步
+
+网页内置 `多端云同步（GitHub Gist）`：
+
+1. 填 GitHub token（Gists 读写）
+2. 点 `初始化云仓`
+3. 点 `同步现在（先拉后推）`
+4. 可选：勾选 `每次保存后自动同步`

@@ -416,6 +416,20 @@ details {
   background: #fff;
 }
 
+.sync-box {
+  margin-top: 10px;
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  background: #fcfbf7;
+  display: grid;
+  gap: 8px;
+}
+
+.sync-box strong {
+  font-size: 0.9rem;
+}
+
 .actions {
   margin-top: 8px;
   display: flex;

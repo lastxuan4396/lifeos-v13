@@ -194,6 +194,38 @@ RUIN：0
                 输出字数
                 <input id="outputWords" name="outputWords" type="number" min="0" placeholder="300">
               </label>
+              <label>
+                软件使用总分钟（设备总和）
+                <input id="appUsageMinutes" name="appUsageMinutes" type="number" min="0" placeholder="180">
+              </label>
+              <label>
+                手机使用分钟
+                <input id="phoneUsageMinutes" name="phoneUsageMinutes" type="number" min="0" placeholder="120">
+              </label>
+              <label>
+                电脑使用分钟
+                <input id="macUsageMinutes" name="macUsageMinutes" type="number" min="0" placeholder="60">
+              </label>
+              <label>
+                头号应用（可选）
+                <input id="topAppName" name="topAppName" type="text" placeholder="例：WeChat">
+              </label>
+              <label>
+                头号应用分钟（可选）
+                <input id="topAppMinutes" name="topAppMinutes" type="number" min="0" placeholder="45">
+              </label>
+              <label>
+                步数（可选）
+                <input id="steps" name="steps" type="number" min="0" placeholder="8000">
+              </label>
+              <label>
+                活动卡路里（可选）
+                <input id="activeCalories" name="activeCalories" type="number" min="0" placeholder="420">
+              </label>
+              <label>
+                运动距离 km（可选）
+                <input id="distanceKm" name="distanceKm" type="number" min="0" step="0.1" placeholder="5.2">
+              </label>
             </div>
             <div class="apple-sync">
               <div class="apple-sync-head">
@@ -202,6 +234,9 @@ RUIN：0
               </div>
               <p class="module-note">网页无法直接读取 Apple Health 权限；建议用 iPhone 快捷指令每天自动打开此页面并带入数据。</p>
               <pre id="appleSyncStatus" class="module-output apple-sync-status empty">尚未接收 Apple 自动填充数据</pre>
+              <div class="actions">
+                <button id="copyMacBridgeCmd" type="button">复制 Mac 自动采集命令</button>
+              </div>
               <details class="apple-help">
                 <summary>一键配置步骤（只做一次）</summary>
                 <ol class="quick-list">
@@ -209,6 +244,7 @@ RUIN：0
                   <li>读取健康数据：睡眠时长、运动分钟；学习时间可用你自己的“学习分钟”变量。</li>
                   <li>动作“打开 URL”，把变量拼到模板 URL 中。</li>
                   <li>打开页面后会自动回填睡眠/训练/深度工作/输出字数。</li>
+                  <li>Mac 软件使用时间可点“复制 Mac 自动采集命令”后在终端运行（建议每天 22:35）。</li>
                 </ol>
               </details>
             </div>
@@ -431,6 +467,28 @@ RUIN：0
           </label>
           <div class="actions">
             <button id="importData" type="button" class="primary">导入并覆盖本地数据</button>
+          </div>
+          <div class="sync-box">
+            <strong>多端云同步（GitHub Gist）</strong>
+            <p class="module-note">一次配置后，手机和电脑都可点“同步现在”。推荐使用 Fine-grained token（仅 Gists 读写）。</p>
+            <label>
+              GitHub Token（本机保存）
+              <input id="syncToken" type="password" placeholder="github_pat_...">
+            </label>
+            <label>
+              Gist ID
+              <input id="syncGistId" type="text" placeholder="留空可点“初始化云仓”自动创建">
+            </label>
+            <label class="inline">
+              <input id="syncAuto" type="checkbox">
+              每次保存后自动同步
+            </label>
+            <div class="actions">
+              <button id="syncSave" type="button">保存同步配置</button>
+              <button id="syncInit" type="button">初始化云仓</button>
+              <button id="syncNow" type="button" class="primary">同步现在（先拉后推）</button>
+            </div>
+            <pre id="syncOutput" class="module-output empty">尚未配置云同步</pre>
           </div>
         </div>
         <pre id="dataOutput" class="module-output empty">导出/导入结果会显示在这里</pre>
