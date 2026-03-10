@@ -370,10 +370,17 @@ details {
   font-size: 0.84rem;
 }
 
-.intent-note {
-  margin: -1px 0 2px;
+.intent-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.intent-rules li {
   font-size: 0.8rem;
   color: #4b463b;
+  line-height: 1.35;
 }
 
 .apple-sync {
