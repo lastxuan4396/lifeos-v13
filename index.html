@@ -164,7 +164,7 @@ RUIN：0
           </label>
 
           <details>
-            <summary>可选指标（用于周看板自动统计）</summary>
+            <summary>可选指标（可自动从 Apple 快捷指令填充）</summary>
             <div class="optional-grid">
               <label>
                 睡眠（小时）
@@ -182,6 +182,23 @@ RUIN：0
                 输出字数
                 <input id="outputWords" name="outputWords" type="number" min="0" placeholder="300">
               </label>
+            </div>
+            <div class="apple-sync">
+              <div class="apple-sync-head">
+                <strong>Apple 自动填充</strong>
+                <button id="copyAppleTemplate" type="button">复制快捷指令 URL 模板</button>
+              </div>
+              <p class="module-note">网页无法直接读取 Apple Health 权限；建议用 iPhone 快捷指令每天自动打开此页面并带入数据。</p>
+              <pre id="appleSyncStatus" class="module-output apple-sync-status empty">尚未接收 Apple 自动填充数据</pre>
+              <details class="apple-help">
+                <summary>一键配置步骤（只做一次）</summary>
+                <ol class="quick-list">
+                  <li>在 iPhone 快捷指令里新建自动化（建议每天 22:30）。</li>
+                  <li>读取健康数据：睡眠时长、运动分钟；学习时间可用你自己的“学习分钟”变量。</li>
+                  <li>动作“打开 URL”，把变量拼到模板 URL 中。</li>
+                  <li>打开页面后会自动回填睡眠/训练/深度工作/输出字数。</li>
+                </ol>
+              </details>
             </div>
           </details>
 

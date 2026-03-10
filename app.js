@@ -1,6 +1,7 @@
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
+const APPLE_SYNC_META_KEY = "lifeos_v13_apple_sync_meta";
 const BACKUP_VERSION = "1.0";
 const CODE_ORDER = ["S", "T", "P"];
 
@@ -54,10 +55,16 @@ let latestDojoStarterText = "";
 const el = {
   form: document.getElementById("dlForm"),
   date: document.getElementById("date"),
+  sleepHours: document.getElementById("sleepHours"),
+  trainingMinutes: document.getElementById("trainingMinutes"),
+  deepWorkMinutes: document.getElementById("deepWorkMinutes"),
+  outputWords: document.getElementById("outputWords"),
   ruinCodesWrap: document.getElementById("ruinCodesWrap"),
   yesterdayBTitle: document.getElementById("yesterdayBTitle"),
   yesterdayBText: document.getElementById("yesterdayBText"),
   bFocus: document.getElementById("bFocus"),
+  copyAppleTemplate: document.getElementById("copyAppleTemplate"),
+  appleSyncStatus: document.getElementById("appleSyncStatus"),
   output: document.getElementById("output"),
   scoreboard: document.getElementById("scoreboard"),
   history: document.getElementById("history"),
@@ -127,9 +134,12 @@ function init() {
   }
 
   bindEvents();
+  applyAppleAutofillFromUrl();
+  hydrateMetricsFromLastAppleSync();
   renderAll(loadEntries());
   renderWorkflowPanels();
   renderYesterdayBContext();
+  renderAppleSyncStatus();
 }
 
 function bindEvents() {
@@ -166,6 +176,10 @@ function bindEvents() {
       const packet = buildLifeOSPacket(getFormData(), latestOutputText);
       copyWithFeedback(packet, el.copyLifeOS, "复制给 LifeOS");
     });
+  }
+
+  if (el.copyAppleTemplate) {
+    el.copyAppleTemplate.addEventListener("click", onCopyAppleTemplate);
   }
 
   const ruinRadios = document.querySelectorAll("input[name='ruin']");
@@ -447,20 +461,30 @@ async function onImportData() {
     const dailyLogs = ensureArray(data.dailyLogs);
     const weeklyReviews = ensureArray(data.weeklyReviews);
     const systemPatches = ensureArray(data.systemPatches);
+    const appleSyncMeta = data.appleSyncMeta && typeof data.appleSyncMeta === "object"
+      ? data.appleSyncMeta
+      : null;
 
     saveEntries(dailyLogs);
     saveCollection(WR_STORAGE_KEY, weeklyReviews);
     saveCollection(PATCH_STORAGE_KEY, systemPatches);
+    if (appleSyncMeta) {
+      localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(appleSyncMeta));
+    } else {
+      localStorage.removeItem(APPLE_SYNC_META_KEY);
+    }
 
     renderAll(loadEntries());
     renderWorkflowPanels();
     renderYesterdayBContext();
+    renderAppleSyncStatus();
 
     const summary = [
       `导入成功：${file.name}`,
       `DL：${dailyLogs.length} 条`,
       `WR：${weeklyReviews.length} 条`,
-      `Patch：${systemPatches.length} 条`
+      `Patch：${systemPatches.length} 条`,
+      `Apple同步：${appleSyncMeta ? "已恢复" : "无"}`
     ].join(" | ");
     setModuleOutput(el.dataOutput, summary, "导出/导入结果会显示在这里");
   } catch (error) {
@@ -470,6 +494,197 @@ async function onImportData() {
       "导出/导入结果会显示在这里"
     );
   }
+}
+
+async function onCopyAppleTemplate() {
+  const base = `${window.location.origin}${window.location.pathname}`;
+  const today = localDateISO(new Date());
+  const template = [
+    `${base}?source=apple-shortcuts`,
+    `date=${today}`,
+    "sleepHours={{sleepHours}}",
+    "trainingMinutes={{exerciseMinutes}}",
+    "deepWorkMinutes={{studyMinutes}}",
+    "outputWords={{outputWords}}",
+    "autoRuin=1"
+  ].join("&");
+
+  await copyWithFeedback(template, el.copyAppleTemplate, "复制快捷指令 URL 模板");
+}
+
+function applyAppleAutofillFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  if (!params || params.toString().length === 0) {
+    return;
+  }
+
+  const payload = {
+    source: String(params.get("source") || "external").trim(),
+    date: getFirstDateParam(params, ["date", "logDate"]),
+    sleepHours: getFirstNumericParam(params, ["sleepHours", "sleep", "sleep_h"]),
+    trainingMinutes: getFirstNumericParam(params, ["trainingMinutes", "exerciseMinutes", "workoutMinutes"]),
+    deepWorkMinutes: getFirstNumericParam(params, ["deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes"]),
+    outputWords: getFirstNumericParam(params, ["outputWords", "words", "writingWords"])
+  };
+
+  let metricTouched = 0;
+  if (setNumericInputValue(el.sleepHours, payload.sleepHours)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.trainingMinutes, payload.trainingMinutes)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.deepWorkMinutes, payload.deepWorkMinutes)) {
+    metricTouched += 1;
+  }
+  if (setNumericInputValue(el.outputWords, payload.outputWords)) {
+    metricTouched += 1;
+  }
+
+  if (metricTouched === 0) {
+    return;
+  }
+
+  if (payload.date && el.date) {
+    el.date.value = payload.date;
+  }
+
+  if (params.get("autoRuin") === "1" && Number(payload.sleepHours) < 6.5) {
+    const ruinOne = document.querySelector("input[name='ruin'][value='1']");
+    const sleepCode = document.querySelector("input[name='ruinCodes'][value='S']");
+    if (ruinOne) {
+      ruinOne.checked = true;
+    }
+    if (sleepCode) {
+      sleepCode.checked = true;
+    }
+    toggleRuinCodes();
+  }
+
+  const meta = {
+    source: payload.source || "external",
+    syncedAt: new Date().toISOString(),
+    date: payload.date || el.date?.value || "",
+    metrics: {
+      sleepHours: payload.sleepHours,
+      trainingMinutes: payload.trainingMinutes,
+      deepWorkMinutes: payload.deepWorkMinutes,
+      outputWords: payload.outputWords
+    }
+  };
+
+  localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta));
+  renderAppleSyncStatus(meta);
+
+  if (window.history?.replaceState) {
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+}
+
+function renderAppleSyncStatus(metaOverride) {
+  if (!el.appleSyncStatus) {
+    return;
+  }
+
+  const raw = metaOverride || loadAppleSyncMeta();
+  if (!raw) {
+    setModuleOutput(el.appleSyncStatus, "", "尚未接收 Apple 自动填充数据");
+    return;
+  }
+
+  const rows = [];
+  if (raw.syncedAt) {
+    rows.push(`最近自动填充：${new Date(raw.syncedAt).toLocaleString()}`);
+  }
+  rows.push(`来源：${raw.source || "external"}`);
+  if (raw.date) {
+    rows.push(`日期：${raw.date}`);
+  }
+
+  const metrics = raw.metrics || {};
+  const metricParts = [];
+  if (Number.isFinite(Number(metrics.sleepHours))) {
+    metricParts.push(`睡眠 ${Number(metrics.sleepHours)}h`);
+  }
+  if (Number.isFinite(Number(metrics.trainingMinutes))) {
+    metricParts.push(`训练 ${Number(metrics.trainingMinutes)}min`);
+  }
+  if (Number.isFinite(Number(metrics.deepWorkMinutes))) {
+    metricParts.push(`学习/深度工作 ${Number(metrics.deepWorkMinutes)}min`);
+  }
+  if (Number.isFinite(Number(metrics.outputWords))) {
+    metricParts.push(`输出 ${Number(metrics.outputWords)}字`);
+  }
+  if (metricParts.length > 0) {
+    rows.push(`已带入：${metricParts.join(" | ")}`);
+  }
+  rows.push("提示：以上仅自动填表，仍需点击“生成 A/B/C/D 并保存”。");
+
+  setModuleOutput(el.appleSyncStatus, rows.join("\n"), "尚未接收 Apple 自动填充数据");
+}
+
+function hydrateMetricsFromLastAppleSync() {
+  const meta = loadAppleSyncMeta();
+  if (!meta || !meta.metrics || !el.date || !el.date.value) {
+    return;
+  }
+
+  if (meta.date !== el.date.value) {
+    return;
+  }
+
+  setNumericInputIfEmpty(el.sleepHours, meta.metrics.sleepHours);
+  setNumericInputIfEmpty(el.trainingMinutes, meta.metrics.trainingMinutes);
+  setNumericInputIfEmpty(el.deepWorkMinutes, meta.metrics.deepWorkMinutes);
+  setNumericInputIfEmpty(el.outputWords, meta.metrics.outputWords);
+}
+
+function loadAppleSyncMeta() {
+  try {
+    const raw = localStorage.getItem(APPLE_SYNC_META_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getFirstNumericParam(params, keys) {
+  for (const key of keys) {
+    const value = params.get(key);
+    const parsed = toNumber(value);
+    if (parsed !== null) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function getFirstDateParam(params, keys) {
+  for (const key of keys) {
+    const value = String(params.get(key) || "").trim();
+    if (!value) {
+      continue;
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value;
+    }
+  }
+  return "";
+}
+
+function setNumericInputValue(input, value) {
+  if (!input || value === null) {
+    return false;
+  }
+  input.value = String(value);
+  return true;
+}
+
+function setNumericInputIfEmpty(input, value) {
+  if (!input || input.value !== "") {
+    return false;
+  }
+  return setNumericInputValue(input, value);
 }
 
 function getFormData() {
@@ -1260,7 +1475,8 @@ function buildBackupPayload() {
     data: {
       dailyLogs: loadEntries(),
       weeklyReviews: loadCollection(WR_STORAGE_KEY),
-      systemPatches: loadCollection(PATCH_STORAGE_KEY)
+      systemPatches: loadCollection(PATCH_STORAGE_KEY),
+      appleSyncMeta: loadAppleSyncMeta()
     }
   };
 }
