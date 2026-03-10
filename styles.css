@@ -370,6 +370,12 @@ details {
   font-size: 0.84rem;
 }
 
+.intent-note {
+  margin: -1px 0 2px;
+  font-size: 0.8rem;
+  color: #4b463b;
+}
+
 .apple-sync {
   margin-top: 10px;
   border: 1px dashed var(--line);

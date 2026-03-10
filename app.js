@@ -59,6 +59,7 @@ const el = {
   intentDefault: document.getElementById("intentDefault"),
   intentCarry: document.getElementById("intentCarry"),
   intentVoice: document.getElementById("intentVoice"),
+  intentAi: document.getElementById("intentAi"),
   sleepHours: document.getElementById("sleepHours"),
   trainingMinutes: document.getElementById("trainingMinutes"),
   deepWorkMinutes: document.getElementById("deepWorkMinutes"),
@@ -192,6 +193,10 @@ function bindEvents() {
 
   if (el.intentVoice) {
     el.intentVoice.addEventListener("click", onIntentVoice);
+  }
+
+  if (el.intentAi) {
+    el.intentAi.addEventListener("click", onIntentAi);
   }
 
   if (el.copyAppleTemplate) {
@@ -614,6 +619,63 @@ function onIntentVoice() {
   rec.start();
 }
 
+function onIntentAi() {
+  if (!el.intent) {
+    return;
+  }
+
+  const suggestion = buildIntentSuggestion(getFormData());
+  if (!suggestion) {
+    alert("当前信息太少，建议直接点“不用写（默认B）”。");
+    return;
+  }
+
+  el.intent.value = suggestion;
+  flashButton(el.intentAi, "已代写");
+}
+
+function buildIntentSuggestion(entry) {
+  if (!entry) {
+    return "";
+  }
+
+  if (entry.ruin === 1) {
+    const codes = normalizeRuinCodes(entry.ruinCodes);
+    if (codes.length > 0) {
+      const ruinSuggestions = {
+        S: "先稳住睡眠节律，明天只做一个5分钟关键动作",
+        T: "先做交易纪律复盘，明天默认不交易",
+        P: "先恢复唯一关键任务推进，只交付一小块"
+      };
+      const parts = codes.map((code) => ruinSuggestions[code]).filter(Boolean);
+      if (parts.length > 0) {
+        return `先防崩：${parts.join("；")}`;
+      }
+    }
+    return "先防崩，明天只做一个5分钟关键动作";
+  }
+
+  if (entry.result) {
+    return `把今天结果再推进一小步：${shortenIntentText(entry.result, 28)}`;
+  }
+
+  if (entry.behavior) {
+    return `继续昨天这块：${shortenIntentText(entry.behavior, 28)}`;
+  }
+
+  const apple = loadAppleSyncMeta();
+  if (apple?.metrics && apple.date === (el.date?.value || "")) {
+    if (Number(apple.metrics.deepWorkMinutes) > 0 || Number(apple.metrics.outputWords) > 0) {
+      return "延续今天的学习/输出同一块，先做15分钟";
+    }
+    if (Number(apple.metrics.trainingMinutes) > 0) {
+      return "延续今天的训练节奏，再做15分钟";
+    }
+  }
+
+  return "";
+}
+
 function applyAppleAutofillFromUrl() {
   const params = new URLSearchParams(window.location.search);
   if (!params || params.toString().length === 0) {
@@ -787,6 +849,17 @@ function setNumericInputIfEmpty(input, value) {
     return false;
   }
   return setNumericInputValue(input, value);
+}
+
+function shortenIntentText(text, maxLen) {
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  if (!clean) {
+    return "";
+  }
+  if (clean.length <= maxLen) {
+    return clean;
+  }
+  return `${clean.slice(0, maxLen)}...`;
 }
 
 function getFormData() {
