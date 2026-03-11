@@ -65,3 +65,10 @@ python3 /Users/xiaoxuan/Documents/Playground/lifeos-v13/scripts/macos_usage_brid
 2. 点 `初始化云仓`
 3. 点 `同步现在（先拉后推）`
 4. 可选：勾选 `每次保存后自动同步`
+
+## GitHub Positioning
+
+- Suggested description: `Local-first daily planning and review tool based on the LifeOS v1.3 playbook.`
+- Suggested topics: `productivity`, `planner`, `lifeos`, `local-first`, `html`, `css`, `javascript`
+- Metadata notes: see [`docs/repo-metadata.md`](docs/repo-metadata.md)
+
