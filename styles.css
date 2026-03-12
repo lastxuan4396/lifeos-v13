@@ -161,6 +161,13 @@ fieldset {
   gap: 6px;
 }
 
+.hint-copy {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: #4b463b;
+}
+
 .hint-card strong {
   font-size: 0.84rem;
 }
@@ -172,6 +179,29 @@ fieldset {
   font-size: 0.76rem;
   line-height: 1.35;
   color: #3e3a31;
+}
+
+.quick-fill-card {
+  background:
+    linear-gradient(180deg, rgba(240, 138, 50, 0.08), transparent 70%),
+    #fcfbf7;
+}
+
+.quick-fill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-fill-actions button {
+  padding: 8px 10px;
+  font-size: 0.83rem;
+}
+
+.intent-assist {
+  border-style: solid;
+  border-color: #cfe0d6;
+  background: #f3faf6;
 }
 
 details {

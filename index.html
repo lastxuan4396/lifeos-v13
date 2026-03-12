@@ -129,6 +129,15 @@ RUIN：0
             <strong id="yesterdayBTitle">昨日系统B：暂无可参考数据</strong>
             <pre id="yesterdayBText">先提交至少一天 DL-30，系统会在这里自动回填“昨天生成的B步骤”。</pre>
           </div>
+          <div id="quickFillCard" class="hint-card quick-fill-card">
+            <strong id="quickFillTitle">今天最低阻力填法</strong>
+            <p id="quickFillText" class="hint-copy">如果你今天只是按昨天的 B 往前推，直接用下面的一键填法，不用自己组织句子。</p>
+            <div class="quick-fill-actions">
+              <button id="behaviorFromYesterdayB" type="button">行为=昨天B</button>
+              <button id="resultDoneMinimal" type="button">结果=完成最小动作</button>
+              <button id="resultStartedMinimal" type="button">结果=只完成启动</button>
+            </div>
+          </div>
 
           <fieldset>
             <legend>RUIN</legend>
@@ -157,16 +166,30 @@ RUIN：0
               P（Priority Drop）
             </label>
           </fieldset>
+          <div id="ruinAssist" class="hint-card hidden">
+            <strong id="ruinAssistTitle">检测到睡眠红灯</strong>
+            <p id="ruinAssistText" class="hint-copy">睡眠 < 6.5h 时，建议按规则切到 `RUIN=1（S）`。</p>
+            <div class="quick-fill-actions">
+              <button id="applySleepRuin" type="button">一键按睡眠红灯处理</button>
+            </div>
+          </div>
 
           <label>
             明日意图（可空）
-            <input id="intent" name="intent" type="text" placeholder="例：把文献综述改成 3 段">
+            <input id="intent" name="intent" type="text" placeholder="不知道写啥就留空；系统会默认给 B">
           </label>
+          <div id="intentAssist" class="hint-card intent-assist">
+            <strong id="intentAssistTitle">当前建议：可以直接留空</strong>
+            <p id="intentAssistText" class="hint-copy">如果你现在不确定写什么，直接留空，系统会默认给 Output 优先的 B。</p>
+            <div class="quick-fill-actions">
+              <button id="intentApplySuggestion" type="button">用当前建议</button>
+            </div>
+          </div>
           <div class="intent-tools">
             <button id="intentDefault" type="button">不用写（默认B）</button>
             <button id="intentCarry" type="button">沿用昨天</button>
             <button id="intentVoice" type="button">语音输入</button>
-            <button id="intentAi" type="button">AI代写意图</button>
+            <button id="intentAi" type="button">刷新建议</button>
           </div>
           <ul class="intent-rules">
             <li>不知道写啥：直接留空。</li>

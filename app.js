@@ -57,11 +57,16 @@ let latestDojoStarterText = "";
 const el = {
   form: document.getElementById("dlForm"),
   date: document.getElementById("date"),
+  behavior: document.getElementById("behavior"),
+  result: document.getElementById("result"),
   intent: document.getElementById("intent"),
   intentDefault: document.getElementById("intentDefault"),
   intentCarry: document.getElementById("intentCarry"),
   intentVoice: document.getElementById("intentVoice"),
   intentAi: document.getElementById("intentAi"),
+  intentApplySuggestion: document.getElementById("intentApplySuggestion"),
+  intentAssistTitle: document.getElementById("intentAssistTitle"),
+  intentAssistText: document.getElementById("intentAssistText"),
   sleepHours: document.getElementById("sleepHours"),
   trainingMinutes: document.getElementById("trainingMinutes"),
   deepWorkMinutes: document.getElementById("deepWorkMinutes"),
@@ -75,8 +80,17 @@ const el = {
   activeCalories: document.getElementById("activeCalories"),
   distanceKm: document.getElementById("distanceKm"),
   ruinCodesWrap: document.getElementById("ruinCodesWrap"),
+  ruinAssist: document.getElementById("ruinAssist"),
+  ruinAssistTitle: document.getElementById("ruinAssistTitle"),
+  ruinAssistText: document.getElementById("ruinAssistText"),
+  applySleepRuin: document.getElementById("applySleepRuin"),
   yesterdayBTitle: document.getElementById("yesterdayBTitle"),
   yesterdayBText: document.getElementById("yesterdayBText"),
+  quickFillTitle: document.getElementById("quickFillTitle"),
+  quickFillText: document.getElementById("quickFillText"),
+  behaviorFromYesterdayB: document.getElementById("behaviorFromYesterdayB"),
+  resultDoneMinimal: document.getElementById("resultDoneMinimal"),
+  resultStartedMinimal: document.getElementById("resultStartedMinimal"),
   bFocus: document.getElementById("bFocus"),
   copyAppleTemplate: document.getElementById("copyAppleTemplate"),
   copyMacBridgeCmd: document.getElementById("copyMacBridgeCmd"),
@@ -164,6 +178,9 @@ function init() {
   renderAll(loadEntries());
   renderWorkflowPanels();
   renderYesterdayBContext();
+  renderQuickFillCard();
+  renderIntentAssist();
+  renderSleepRuinAssist();
   renderAppleSyncStatus();
   renderSyncStatus();
 }
@@ -174,7 +191,12 @@ function bindEvents() {
   }
 
   if (el.date) {
-    el.date.addEventListener("change", renderYesterdayBContext);
+    el.date.addEventListener("change", () => {
+      renderYesterdayBContext();
+      renderQuickFillCard();
+      renderIntentAssist();
+      renderSleepRuinAssist();
+    });
   }
 
   if (el.quickZeroDay) {
@@ -220,6 +242,22 @@ function bindEvents() {
     el.intentAi.addEventListener("click", onIntentAi);
   }
 
+  if (el.intentApplySuggestion) {
+    el.intentApplySuggestion.addEventListener("click", onIntentApplySuggestion);
+  }
+
+  if (el.behaviorFromYesterdayB) {
+    el.behaviorFromYesterdayB.addEventListener("click", onBehaviorFromYesterdayB);
+  }
+
+  if (el.resultDoneMinimal) {
+    el.resultDoneMinimal.addEventListener("click", onResultDoneMinimal);
+  }
+
+  if (el.resultStartedMinimal) {
+    el.resultStartedMinimal.addEventListener("click", onResultStartedMinimal);
+  }
+
   if (el.copyAppleTemplate) {
     el.copyAppleTemplate.addEventListener("click", onCopyAppleTemplate);
   }
@@ -229,8 +267,52 @@ function bindEvents() {
   }
 
   const ruinRadios = document.querySelectorAll("input[name='ruin']");
-  ruinRadios.forEach((radio) => radio.addEventListener("change", toggleRuinCodes));
+  ruinRadios.forEach((radio) => radio.addEventListener("change", () => {
+    toggleRuinCodes();
+    renderIntentAssist();
+    renderQuickFillCard();
+  }));
+
+  const ruinCodeChecks = document.querySelectorAll("input[name='ruinCodes']");
+  ruinCodeChecks.forEach((checkbox) => checkbox.addEventListener("change", () => {
+    renderIntentAssist();
+    renderQuickFillCard();
+  }));
   toggleRuinCodes();
+
+  if (el.sleepHours) {
+    el.sleepHours.addEventListener("input", () => {
+      renderSleepRuinAssist();
+      renderIntentAssist();
+    });
+  }
+
+  if (el.behavior) {
+    el.behavior.addEventListener("input", renderIntentAssist);
+  }
+
+  if (el.result) {
+    el.result.addEventListener("input", renderIntentAssist);
+  }
+
+  if (el.trainingMinutes) {
+    el.trainingMinutes.addEventListener("input", renderIntentAssist);
+  }
+
+  if (el.deepWorkMinutes) {
+    el.deepWorkMinutes.addEventListener("input", renderIntentAssist);
+  }
+
+  if (el.outputWords) {
+    el.outputWords.addEventListener("input", renderIntentAssist);
+  }
+
+  if (el.applySleepRuin) {
+    el.applySleepRuin.addEventListener("click", () => {
+      applySleepRuinRule(true);
+      renderIntentAssist();
+    });
+  }
 
   if (el.wrForm) {
     el.wrForm.addEventListener("submit", onWrSubmit);
@@ -939,6 +1021,7 @@ function onIntentDefault() {
   }
   el.intent.value = "";
   flashButton(el.intentDefault, "已切默认B");
+  renderIntentAssist();
 }
 
 function onIntentCarry() {
@@ -946,9 +1029,7 @@ function onIntentCarry() {
     return;
   }
 
-  const selectedDate = el.date.value || localDateISO(new Date());
-  const previousDate = shiftDateISO(selectedDate, -1);
-  const previousEntry = loadEntries().find((item) => item.date === previousDate);
+  const previousEntry = getPreviousEntryForSelectedDate(loadEntries());
 
   if (!previousEntry) {
     alert("昨天没有记录，无法沿用。可直接点“不用写（默认B）”。");
@@ -958,6 +1039,7 @@ function onIntentCarry() {
   const carryText = buildCarryIntent(previousEntry);
   el.intent.value = carryText;
   flashButton(el.intentCarry, "已沿用");
+  renderIntentAssist();
 }
 
 function onIntentVoice() {
@@ -1032,11 +1114,75 @@ function onIntentAi() {
 
   el.intent.value = suggestion;
   flashButton(el.intentAi, "已代写");
+  renderIntentAssist();
+}
+
+function onIntentApplySuggestion() {
+  if (!el.intent) {
+    return;
+  }
+
+  const suggestion = buildIntentSuggestion(getFormData());
+  if (!suggestion) {
+    el.intent.value = "";
+    flashButton(el.intentApplySuggestion, "留空即可");
+    renderIntentAssist();
+    return;
+  }
+
+  el.intent.value = suggestion;
+  flashButton(el.intentApplySuggestion, "已填入");
+  renderIntentAssist();
+}
+
+function onBehaviorFromYesterdayB() {
+  if (!el.behavior) {
+    return;
+  }
+
+  const previousEntry = getPreviousEntryForSelectedDate(loadEntries());
+  if (!previousEntry) {
+    alert("昨天没有记录，无法一键带入。");
+    return;
+  }
+
+  const firstStep = getPrimaryBStep(previousEntry);
+  el.behavior.value = firstStep
+    ? `执行昨日B：${firstStep}`
+    : `继续昨天这块：${shortenIntentText(previousEntry.behavior || previousEntry.result || "最小动作", 28)}`;
+  flashButton(el.behaviorFromYesterdayB, "已填行为");
+  renderIntentAssist();
+}
+
+function onResultDoneMinimal() {
+  if (!el.result) {
+    return;
+  }
+
+  el.result.value = shouldUseRecoveryLanguage(getFormData())
+    ? "完成恢复版最小动作，无加码"
+    : "完成最小动作，推进了一小块";
+  flashButton(el.resultDoneMinimal, "已填结果");
+  renderIntentAssist();
+}
+
+function onResultStartedMinimal() {
+  if (!el.result) {
+    return;
+  }
+
+  el.result.value = "只完成启动动作，但没有断更";
+  flashButton(el.resultStartedMinimal, "已填结果");
+  renderIntentAssist();
 }
 
 function buildIntentSuggestion(entry) {
   if (!entry) {
     return "";
+  }
+
+  if (entry.intent) {
+    return entry.intent;
   }
 
   if (entry.ruin === 1) {
@@ -1074,6 +1220,122 @@ function buildIntentSuggestion(entry) {
   }
 
   return "";
+}
+
+function renderQuickFillCard() {
+  if (!el.quickFillTitle || !el.quickFillText) {
+    return;
+  }
+
+  const previousEntry = getPreviousEntryForSelectedDate(loadEntries());
+  if (!previousEntry) {
+    el.quickFillTitle.textContent = "今天最低阻力填法";
+    el.quickFillText.textContent = "昨天还没有记录。今天只写最关键的行为和结果；如果很忙，直接走 Zero-Day 也可以。";
+    if (el.behaviorFromYesterdayB) {
+      el.behaviorFromYesterdayB.disabled = true;
+    }
+    return;
+  }
+
+  if (el.behaviorFromYesterdayB) {
+    el.behaviorFromYesterdayB.disabled = false;
+  }
+
+  const firstStep = getPrimaryBStep(previousEntry);
+  const summary = firstStep
+    ? `如果你今天只是照着昨天的 B 往前推，先点“行为=昨天B”，再点“结果=完成最小动作”。昨日第一步是：${shortenIntentText(firstStep, 42)}`
+    : "昨天有记录但没有可直接复用的 B 步骤；你可以继续沿用昨天那块内容，不必重想。";
+
+  el.quickFillTitle.textContent = `今天最低阻力填法（参考 ${previousEntry.date}）`;
+  el.quickFillText.textContent = summary;
+}
+
+function renderIntentAssist() {
+  if (!el.intentAssistTitle || !el.intentAssistText) {
+    return;
+  }
+
+  const entry = getFormData();
+  if (entry.intent) {
+    el.intentAssistTitle.textContent = "当前建议：你已经写够了";
+    el.intentAssistText.textContent = `已写意图：${entry.intent}。不用再优化，系统会按这句继续生成 B。`;
+    return;
+  }
+
+  const suggestion = buildIntentSuggestion(entry);
+
+  if (!suggestion) {
+    el.intentAssistTitle.textContent = "当前建议：可以直接留空";
+    el.intentAssistText.textContent = "你现在不需要想“明天怎么写”。直接留空，系统会默认给 Output 优先的 B。";
+    return;
+  }
+
+  el.intentAssistTitle.textContent = "当前建议：系统已经帮你写好一句";
+  el.intentAssistText.textContent = suggestion;
+}
+
+function renderSleepRuinAssist() {
+  if (!el.ruinAssist || !el.ruinAssistText) {
+    return;
+  }
+
+  const sleepHours = toNumber(el.sleepHours?.value);
+  if (sleepHours === null || sleepHours >= 6.5) {
+    el.ruinAssist.classList.add("hidden");
+    return;
+  }
+
+  el.ruinAssist.classList.remove("hidden");
+  el.ruinAssistText.textContent = `检测到睡眠 ${sleepHours}h，已低于 6.5h 阈值。按规则建议切到 RUIN=1（S），并把明日 B 自动理解为 <=5 分钟。`;
+}
+
+function applySleepRuinRule(shouldFlashButton = false) {
+  const sleepHours = toNumber(el.sleepHours?.value);
+  if (sleepHours === null || sleepHours >= 6.5) {
+    return false;
+  }
+
+  const ruinOne = document.querySelector("input[name='ruin'][value='1']");
+  const sleepCode = document.querySelector("input[name='ruinCodes'][value='S']");
+  if (ruinOne) {
+    ruinOne.checked = true;
+  }
+  if (sleepCode) {
+    sleepCode.checked = true;
+  }
+  toggleRuinCodes();
+  renderSleepRuinAssist();
+  renderQuickFillCard();
+
+  if (shouldFlashButton && el.applySleepRuin) {
+    flashButton(el.applySleepRuin, "已切红灯");
+  }
+
+  return true;
+}
+
+function getPreviousEntryForSelectedDate(entries) {
+  const selectedDate = el.date?.value || localDateISO(new Date());
+  const previousDate = shiftDateISO(selectedDate, -1);
+  return entries.find((item) => item.date === previousDate) || null;
+}
+
+function getPrimaryBStep(entry) {
+  if (!entry || !entry.output || !Array.isArray(entry.output.b)) {
+    return "";
+  }
+  return String(entry.output.b[0] || "").trim();
+}
+
+function shouldUseRecoveryLanguage(entry) {
+  if (!entry) {
+    return false;
+  }
+  if (entry.ruin === 1) {
+    return true;
+  }
+  const sleepHours = toNumber(entry.sleepHours);
+  return sleepHours !== null && sleepHours < 6.5;
 }
 
 function applyAppleAutofillFromUrl() {
@@ -1146,16 +1408,8 @@ function applyAppleAutofillFromUrl() {
     el.date.value = payload.date;
   }
 
-  if (params.get("autoRuin") === "1" && Number(payload.sleepHours) < 6.5) {
-    const ruinOne = document.querySelector("input[name='ruin'][value='1']");
-    const sleepCode = document.querySelector("input[name='ruinCodes'][value='S']");
-    if (ruinOne) {
-      ruinOne.checked = true;
-    }
-    if (sleepCode) {
-      sleepCode.checked = true;
-    }
-    toggleRuinCodes();
+  if (params.get("autoRuin") === "1") {
+    applySleepRuinRule(false);
   }
 
   const meta = {
@@ -1179,6 +1433,8 @@ function applyAppleAutofillFromUrl() {
   };
 
   localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta));
+  renderSleepRuinAssist();
+  renderIntentAssist();
   renderAppleSyncStatus(meta);
 
   if (window.history?.replaceState) {
@@ -1245,6 +1501,9 @@ function renderAppleSyncStatus(metaOverride) {
   if (metricParts.length > 0) {
     rows.push(`已带入：${metricParts.join(" | ")}`);
   }
+  if (hasMetricValue(metrics.sleepHours) && Number(metrics.sleepHours) < 6.5) {
+    rows.push("规则提示：睡眠低于 6.5h，建议按 RUIN=S 处理。");
+  }
   rows.push("提示：以上仅自动填表，仍需点击“生成 A/B/C/D 并保存”。");
 
   setModuleOutput(el.appleSyncStatus, rows.join("\n"), "尚未接收 Apple 自动填充数据");
@@ -1274,6 +1533,10 @@ function hydrateMetricsFromLastAppleSync() {
   if (el.topAppName && el.topAppName.value === "" && meta.metrics.topAppName) {
     el.topAppName.value = String(meta.metrics.topAppName);
   }
+
+  applySleepRuinRule(false);
+  renderSleepRuinAssist();
+  renderIntentAssist();
 }
 
 function loadAppleSyncMeta() {
@@ -1792,6 +2055,9 @@ function renderAll(entries, outputObj) {
 
   el.scoreboard.textContent = buildScoreboard(entries);
   renderHistory(entries);
+  renderQuickFillCard();
+  renderIntentAssist();
+  renderSleepRuinAssist();
 }
 
 function renderExecutionFocus(output) {
@@ -1830,7 +2096,7 @@ function renderYesterdayBContext() {
 
   const selectedDate = el.date.value || localDateISO(new Date());
   const previousDate = shiftDateISO(selectedDate, -1);
-  const previousEntry = loadEntries().find((item) => item.date === previousDate);
+  const previousEntry = getPreviousEntryForSelectedDate(loadEntries());
 
   if (!previousEntry) {
     el.yesterdayBTitle.textContent = `昨日系统B（${previousDate}）：暂无记录`;
