@@ -24,6 +24,10 @@ body {
   color: var(--ink);
 }
 
+body.quick-mode .help-card {
+  display: none;
+}
+
 .page {
   max-width: 1200px;
   margin: 0 auto;
@@ -91,6 +95,31 @@ h1 {
   box-shadow: var(--shadow);
   border-radius: 16px;
   padding: 18px;
+}
+
+.mode-switch {
+  display: inline-flex;
+  gap: 8px;
+  margin: -2px 0 12px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8f5ea;
+}
+
+.mode-switch button {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: transparent;
+  border-color: transparent;
+  font-size: 0.85rem;
+}
+
+.mode-switch button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 700;
 }
 
 h2 {
@@ -187,6 +216,15 @@ fieldset {
     #fcfbf7;
 }
 
+.quick-mode-banner {
+  margin-bottom: 12px;
+  border-style: solid;
+  border-color: #d9d2b8;
+  background:
+    linear-gradient(180deg, rgba(240, 138, 50, 0.12), transparent 72%),
+    #fbf7eb;
+}
+
 .quick-fill-actions {
   display: flex;
   flex-wrap: wrap;
@@ -202,6 +240,26 @@ fieldset {
   border-style: solid;
   border-color: #cfe0d6;
   background: #f3faf6;
+}
+
+.engine-signal-card {
+  border-style: solid;
+  border-color: #c7d6e4;
+  background: #f2f8fd;
+}
+
+.intent-details {
+  background: #fffdfa;
+}
+
+.intent-details > summary {
+  cursor: pointer;
+}
+
+body.quick-mode .intent-details:not([open]) {
+  background: transparent;
+  padding: 0;
+  border: 0;
 }
 
 details {
@@ -510,6 +568,11 @@ button:hover {
   border-radius: 12px;
   padding: 10px;
   margin-bottom: 10px;
+}
+
+.woop-card {
+  border-color: #d8c4a7;
+  background: #fbf5ec;
 }
 
 .exec-label {

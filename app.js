@@ -3,6 +3,7 @@ const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
 const APPLE_SYNC_META_KEY = "lifeos_v13_apple_sync_meta";
 const SYNC_SETTINGS_KEY = "lifeos_v13_sync_settings";
+const UI_MODE_KEY = "lifeos_v13_ui_mode";
 const SYNC_FILENAME = "lifeos-sync.json";
 const BACKUP_VERSION = "1.0";
 const CODE_ORDER = ["S", "T", "P"];
@@ -55,11 +56,15 @@ let latestDojoOutputText = "";
 let latestDojoStarterText = "";
 
 const el = {
+  modeQuick: document.getElementById("modeQuick"),
+  modeFull: document.getElementById("modeFull"),
+  quickModeBanner: document.getElementById("quickModeBanner"),
   form: document.getElementById("dlForm"),
   date: document.getElementById("date"),
   behavior: document.getElementById("behavior"),
   result: document.getElementById("result"),
   intent: document.getElementById("intent"),
+  intentDetails: document.getElementById("intentDetails"),
   intentDefault: document.getElementById("intentDefault"),
   intentCarry: document.getElementById("intentCarry"),
   intentVoice: document.getElementById("intentVoice"),
@@ -67,6 +72,8 @@ const el = {
   intentApplySuggestion: document.getElementById("intentApplySuggestion"),
   intentAssistTitle: document.getElementById("intentAssistTitle"),
   intentAssistText: document.getElementById("intentAssistText"),
+  engineSignalTitle: document.getElementById("engineSignalTitle"),
+  engineSignalText: document.getElementById("engineSignalText"),
   sleepHours: document.getElementById("sleepHours"),
   trainingMinutes: document.getElementById("trainingMinutes"),
   deepWorkMinutes: document.getElementById("deepWorkMinutes"),
@@ -96,6 +103,8 @@ const el = {
   copyMacBridgeCmd: document.getElementById("copyMacBridgeCmd"),
   appleSyncStatus: document.getElementById("appleSyncStatus"),
   output: document.getElementById("output"),
+  woopLiteCard: document.getElementById("woopLiteCard"),
+  woopLiteText: document.getElementById("woopLiteText"),
   scoreboard: document.getElementById("scoreboard"),
   history: document.getElementById("history"),
   copyDl: document.getElementById("copyDl"),
@@ -153,6 +162,8 @@ const el = {
 init();
 
 function init() {
+  initUIMode();
+
   const now = new Date();
 
   if (el.date) {
@@ -180,12 +191,50 @@ function init() {
   renderYesterdayBContext();
   renderQuickFillCard();
   renderIntentAssist();
+  renderEngineSignal();
   renderSleepRuinAssist();
   renderAppleSyncStatus();
   renderSyncStatus();
 }
 
+function initUIMode() {
+  const saved = String(localStorage.getItem(UI_MODE_KEY) || "quick").trim().toLowerCase();
+  setUIMode(saved === "full" ? "full" : "quick");
+}
+
+function setUIMode(mode) {
+  const nextMode = mode === "full" ? "full" : "quick";
+  localStorage.setItem(UI_MODE_KEY, nextMode);
+  document.body.classList.toggle("quick-mode", nextMode === "quick");
+
+  if (el.modeQuick) {
+    el.modeQuick.classList.toggle("active", nextMode === "quick");
+    el.modeQuick.setAttribute("aria-pressed", String(nextMode === "quick"));
+  }
+
+  if (el.modeFull) {
+    el.modeFull.classList.toggle("active", nextMode === "full");
+    el.modeFull.setAttribute("aria-pressed", String(nextMode === "full"));
+  }
+
+  if (el.quickModeBanner) {
+    el.quickModeBanner.classList.toggle("hidden", nextMode !== "quick");
+  }
+
+  if (el.intentDetails) {
+    el.intentDetails.open = nextMode === "full";
+  }
+}
+
 function bindEvents() {
+  if (el.modeQuick) {
+    el.modeQuick.addEventListener("click", () => setUIMode("quick"));
+  }
+
+  if (el.modeFull) {
+    el.modeFull.addEventListener("click", () => setUIMode("full"));
+  }
+
   if (el.form) {
     el.form.addEventListener("submit", onSubmit);
   }
@@ -195,6 +244,7 @@ function bindEvents() {
       renderYesterdayBContext();
       renderQuickFillCard();
       renderIntentAssist();
+      renderEngineSignal();
       renderSleepRuinAssist();
     });
   }
@@ -270,12 +320,14 @@ function bindEvents() {
   ruinRadios.forEach((radio) => radio.addEventListener("change", () => {
     toggleRuinCodes();
     renderIntentAssist();
+    renderEngineSignal();
     renderQuickFillCard();
   }));
 
   const ruinCodeChecks = document.querySelectorAll("input[name='ruinCodes']");
   ruinCodeChecks.forEach((checkbox) => checkbox.addEventListener("change", () => {
     renderIntentAssist();
+    renderEngineSignal();
     renderQuickFillCard();
   }));
   toggleRuinCodes();
@@ -284,28 +336,50 @@ function bindEvents() {
     el.sleepHours.addEventListener("input", () => {
       renderSleepRuinAssist();
       renderIntentAssist();
+      renderEngineSignal();
     });
   }
 
   if (el.behavior) {
-    el.behavior.addEventListener("input", renderIntentAssist);
+    el.behavior.addEventListener("input", () => {
+      renderIntentAssist();
+      renderEngineSignal();
+    });
   }
 
   if (el.result) {
-    el.result.addEventListener("input", renderIntentAssist);
+    el.result.addEventListener("input", () => {
+      renderIntentAssist();
+      renderEngineSignal();
+    });
   }
 
   if (el.trainingMinutes) {
-    el.trainingMinutes.addEventListener("input", renderIntentAssist);
+    el.trainingMinutes.addEventListener("input", () => {
+      renderIntentAssist();
+      renderEngineSignal();
+    });
   }
 
   if (el.deepWorkMinutes) {
-    el.deepWorkMinutes.addEventListener("input", renderIntentAssist);
+    el.deepWorkMinutes.addEventListener("input", () => {
+      renderIntentAssist();
+      renderEngineSignal();
+    });
   }
 
   if (el.outputWords) {
-    el.outputWords.addEventListener("input", renderIntentAssist);
+    el.outputWords.addEventListener("input", () => {
+      renderIntentAssist();
+      renderEngineSignal();
+    });
   }
+
+  [el.appUsageMinutes, el.phoneUsageMinutes, el.macUsageMinutes, el.topAppName, el.topAppMinutes, el.steps, el.activeCalories, el.distanceKm]
+    .filter(Boolean)
+    .forEach((node) => {
+      node.addEventListener("input", renderEngineSignal);
+    });
 
   if (el.applySleepRuin) {
     el.applySleepRuin.addEventListener("click", () => {
@@ -1022,6 +1096,7 @@ function onIntentDefault() {
   el.intent.value = "";
   flashButton(el.intentDefault, "已切默认B");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function onIntentCarry() {
@@ -1040,6 +1115,7 @@ function onIntentCarry() {
   el.intent.value = carryText;
   flashButton(el.intentCarry, "已沿用");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function onIntentVoice() {
@@ -1082,6 +1158,8 @@ function onIntentVoice() {
     const text = String(event.results?.[0]?.[0]?.transcript || "").trim();
     if (text) {
       el.intent.value = text;
+      renderIntentAssist();
+      renderEngineSignal();
     }
   };
 
@@ -1115,6 +1193,7 @@ function onIntentAi() {
   el.intent.value = suggestion;
   flashButton(el.intentAi, "已代写");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function onIntentApplySuggestion() {
@@ -1127,12 +1206,14 @@ function onIntentApplySuggestion() {
     el.intent.value = "";
     flashButton(el.intentApplySuggestion, "留空即可");
     renderIntentAssist();
+    renderEngineSignal();
     return;
   }
 
   el.intent.value = suggestion;
   flashButton(el.intentApplySuggestion, "已填入");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function onBehaviorFromYesterdayB() {
@@ -1152,6 +1233,7 @@ function onBehaviorFromYesterdayB() {
     : `继续昨天这块：${shortenIntentText(previousEntry.behavior || previousEntry.result || "最小动作", 28)}`;
   flashButton(el.behaviorFromYesterdayB, "已填行为");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function onResultDoneMinimal() {
@@ -1164,6 +1246,7 @@ function onResultDoneMinimal() {
     : "完成最小动作，推进了一小块";
   flashButton(el.resultDoneMinimal, "已填结果");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function onResultStartedMinimal() {
@@ -1174,6 +1257,7 @@ function onResultStartedMinimal() {
   el.result.value = "只完成启动动作，但没有断更";
   flashButton(el.resultStartedMinimal, "已填结果");
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function buildIntentSuggestion(entry) {
@@ -1185,7 +1269,9 @@ function buildIntentSuggestion(entry) {
     return entry.intent;
   }
 
-  if (entry.ruin === 1) {
+  const signals = deriveExecutionSignals(entry);
+
+  if (signals.sleepRed || entry.ruin === 1) {
     const codes = normalizeRuinCodes(entry.ruinCodes);
     if (codes.length > 0) {
       const ruinSuggestions = {
@@ -1201,22 +1287,20 @@ function buildIntentSuggestion(entry) {
     return "先防崩，明天只做一个5分钟关键动作";
   }
 
+  if (signals.attentionLeak) {
+    return "先关干扰，再用10分钟单线程推进唯一动作";
+  }
+
+  if (signals.focus === "training") {
+    return "先用10分钟训练启动，把身体拉起来";
+  }
+
   if (entry.result) {
     return `把今天结果再推进一小步：${shortenIntentText(entry.result, 28)}`;
   }
 
   if (entry.behavior) {
     return `继续昨天这块：${shortenIntentText(entry.behavior, 28)}`;
-  }
-
-  const apple = loadAppleSyncMeta();
-  if (apple?.metrics && apple.date === (el.date?.value || "")) {
-    if (Number(apple.metrics.deepWorkMinutes) > 0 || Number(apple.metrics.outputWords) > 0) {
-      return "延续今天的学习/输出同一块，先做15分钟";
-    }
-    if (Number(apple.metrics.trainingMinutes) > 0) {
-      return "延续今天的训练节奏，再做15分钟";
-    }
   }
 
   return "";
@@ -1274,6 +1358,49 @@ function renderIntentAssist() {
   el.intentAssistText.textContent = suggestion;
 }
 
+function renderEngineSignal() {
+  if (!el.engineSignalTitle || !el.engineSignalText) {
+    return;
+  }
+
+  const signals = deriveExecutionSignals(getFormData());
+
+  if (signals.sleepRed) {
+    el.engineSignalTitle.textContent = "当前模式：睡眠红灯预警";
+    el.engineSignalText.textContent = `睡眠低于 6.5h。即使你不手动勾 RUIN，系统也会把明日动作按 5 分钟保守版理解；建议直接按 S 防线处理。`;
+    return;
+  }
+
+  if (signals.failureStreak >= 2) {
+    el.engineSignalTitle.textContent = "当前模式：连续失败修复";
+    el.engineSignalText.textContent = `最近连续 ${signals.failureStreak} 次 B=0。现在最重要的不是写更大计划，而是把启动动作缩到 2-5 分钟，并执行 WOOP-lite。`;
+    return;
+  }
+
+  if (signals.focus === "input-control") {
+    const formData = getFormData();
+    const topApp = formData.topAppName ? `，先避开 ${formData.topAppName}` : "";
+    el.engineSignalTitle.textContent = "当前默认B方向：Input control";
+    el.engineSignalText.textContent = `设备数据更像注意力泄漏。留空时系统会先给“关干扰 + 单线程启动”的锚点动作${topApp}。`;
+    return;
+  }
+
+  if (signals.focus === "training") {
+    el.engineSignalTitle.textContent = "当前默认B方向：Training";
+    el.engineSignalText.textContent = "今天更适合先把身体拉起来。留空时系统会优先给一个 10 分钟训练启动动作。";
+    return;
+  }
+
+  if (signals.focus === "intent") {
+    el.engineSignalTitle.textContent = "当前默认B方向：沿用你写的方向";
+    el.engineSignalText.textContent = "你已经给了明确方向。系统会把 B 锁到这条主线，不再额外分散。";
+    return;
+  }
+
+  el.engineSignalTitle.textContent = "当前默认B方向：Output";
+  el.engineSignalText.textContent = `如果你留空，系统会按 ${signals.anchor} 的节奏，给你一个围绕同一块内容的锚点式输出动作。`;
+}
+
 function renderSleepRuinAssist() {
   if (!el.ruinAssist || !el.ruinAssistText) {
     return;
@@ -1306,12 +1433,33 @@ function applySleepRuinRule(shouldFlashButton = false) {
   toggleRuinCodes();
   renderSleepRuinAssist();
   renderQuickFillCard();
+  renderEngineSignal();
 
   if (shouldFlashButton && el.applySleepRuin) {
     flashButton(el.applySleepRuin, "已切红灯");
   }
 
   return true;
+}
+
+function renderWoopLite(output) {
+  if (!el.woopLiteCard || !el.woopLiteText) {
+    return;
+  }
+
+  const woop = output?.woop || null;
+  if (!woop) {
+    el.woopLiteCard.classList.add("hidden");
+    el.woopLiteText.textContent = "连续 2 天 B=0 时，这里会自动给出“障碍 -> if-then 计划”。";
+    return;
+  }
+
+  el.woopLiteCard.classList.remove("hidden");
+  el.woopLiteText.textContent = [
+    `W：${woop.wish}`,
+    `O：${woop.obstacle}`,
+    `P：${woop.plan}`
+  ].join("\n");
 }
 
 function getPreviousEntryForSelectedDate(entries) {
@@ -1504,6 +1652,24 @@ function renderAppleSyncStatus(metaOverride) {
   if (hasMetricValue(metrics.sleepHours) && Number(metrics.sleepHours) < 6.5) {
     rows.push("规则提示：睡眠低于 6.5h，建议按 RUIN=S 处理。");
   }
+  if (
+    (
+      Number(metrics.appUsageMinutes) >= 240 ||
+      Number(metrics.phoneUsageMinutes) >= 180 ||
+      Number(metrics.topAppMinutes) >= 90
+    ) &&
+    Number(metrics.deepWorkMinutes || 0) < 15 &&
+    Number(metrics.outputWords || 0) < 100
+  ) {
+    rows.push("规则提示：今天更像注意力泄漏；留空时系统会优先给输入控制型 B。");
+  }
+  if (
+    Number(metrics.trainingMinutes || 0) < 10 &&
+    Number(metrics.steps || 0) < 5000 &&
+    Number(metrics.activeCalories || 0) < 220
+  ) {
+    rows.push("规则提示：身体启动偏弱；留空时系统可能优先给短训练型 B。");
+  }
   rows.push("提示：以上仅自动填表，仍需点击“生成 A/B/C/D 并保存”。");
 
   setModuleOutput(el.appleSyncStatus, rows.join("\n"), "尚未接收 Apple 自动填充数据");
@@ -1537,6 +1703,7 @@ function hydrateMetricsFromLastAppleSync() {
   applySleepRuinRule(false);
   renderSleepRuinAssist();
   renderIntentAssist();
+  renderEngineSignal();
 }
 
 function loadAppleSyncMeta() {
@@ -1639,6 +1806,138 @@ function buildCarryIntent(previousEntry) {
   return "继续昨天同一块";
 }
 
+function deriveExecutionSignals(entry, entries = loadEntries()) {
+  const date = entry?.date || localDateISO(new Date());
+  const previousEntry = entries.find((item) => item.date === shiftDateISO(date, -1)) || null;
+  const merged = upsertEntryByDate(entries, {
+    ...entry,
+    date,
+    createdAt: entry?.createdAt || new Date().toISOString()
+  });
+
+  const sleepHours = toNumber(entry.sleepHours);
+  const trainingMinutes = toNumber(entry.trainingMinutes) || 0;
+  const deepWorkMinutes = toNumber(entry.deepWorkMinutes) || 0;
+  const outputWords = toNumber(entry.outputWords) || 0;
+  const appUsageMinutes = toNumber(entry.appUsageMinutes) || 0;
+  const phoneUsageMinutes = toNumber(entry.phoneUsageMinutes) || 0;
+  const macUsageMinutes = toNumber(entry.macUsageMinutes) || 0;
+  const topAppMinutes = toNumber(entry.topAppMinutes) || 0;
+  const steps = toNumber(entry.steps) || 0;
+  const activeCalories = toNumber(entry.activeCalories) || 0;
+
+  const sleepRed = sleepHours !== null && sleepHours < 6.5;
+  const attentionLeak = (
+    appUsageMinutes >= 240 ||
+    phoneUsageMinutes >= 180 ||
+    macUsageMinutes >= 240 ||
+    topAppMinutes >= 90
+  ) && deepWorkMinutes < 15 && outputWords < 100;
+
+  const movementLow = trainingMinutes < 10 && steps < 5000 && activeCalories < 220;
+  const failureStreak = countLatestFailureStreak(merged);
+  const effectiveRed = entry.ruin === 1 || sleepRed;
+
+  let focus = "output";
+  let reason = "当前没有强异常信号，默认继续可见输出最稳。";
+
+  if (entry.intent) {
+    focus = "intent";
+    reason = "你已经给了明确方向，系统直接沿这条主线生成 B。";
+  } else if (sleepRed) {
+    focus = "recovery";
+    reason = `睡眠 ${sleepHours}h 低于 6.5h，系统自动切保守版。`;
+  } else if (attentionLeak) {
+    focus = "input-control";
+    reason = "今天更像注意力泄漏，不是没时间；先关干扰再推进。";
+  } else if (movementLow && deepWorkMinutes < 15 && outputWords < 100) {
+    focus = "training";
+    reason = "身体启动信号偏弱，先用短训练把系统拉起来更稳。";
+  } else if (previousEntry?.result || previousEntry?.behavior) {
+    focus = "output";
+    reason = "继续昨天同一块，切换更少，成功率更高。";
+  }
+
+  let duration = effectiveRed ? 5 : 15;
+  if (!effectiveRed && focus === "training") {
+    duration = 10;
+  }
+  if (!effectiveRed && focus === "input-control") {
+    duration = 10;
+  }
+  if (failureStreak >= 2) {
+    duration = Math.min(duration, 5);
+  }
+
+  return {
+    previousEntry,
+    failureStreak,
+    sleepRed,
+    attentionLeak,
+    movementLow,
+    effectiveRed,
+    focus,
+    reason,
+    duration,
+    anchor: pickAnchor(focus, { effectiveRed, attentionLeak, movementLow }),
+    target: resolvePrimaryTarget(entry, previousEntry)
+  };
+}
+
+function countLatestFailureStreak(entries) {
+  let streak = 0;
+  for (const item of entries) {
+    if (Number(item?.bExecuted) === 0) {
+      streak += 1;
+      continue;
+    }
+    break;
+  }
+  return streak;
+}
+
+function pickAnchor(focus, flags) {
+  if (flags?.effectiveRed) {
+    return "明天起床后";
+  }
+  if (focus === "training") {
+    return "明天换好鞋后";
+  }
+  if (focus === "input-control") {
+    return "明天坐到桌前后";
+  }
+  return "明天洗漱后";
+}
+
+function resolvePrimaryTarget(entry, previousEntry) {
+  const explicit = String(entry.intent || "").trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const result = String(entry.result || "").trim();
+  if (result) {
+    return shortenIntentText(result, 32);
+  }
+
+  const previousResult = String(previousEntry?.result || "").trim();
+  if (previousResult) {
+    return shortenIntentText(previousResult, 32);
+  }
+
+  const previousBehavior = String(previousEntry?.behavior || "").trim();
+  if (previousBehavior) {
+    return shortenIntentText(previousBehavior, 32);
+  }
+
+  const previousB = getPrimaryBStep(previousEntry);
+  if (previousB) {
+    return shortenIntentText(previousB, 32);
+  }
+
+  return "标题+3要点";
+}
+
 function getWrData() {
   const fd = new FormData(el.wrForm);
   return {
@@ -1684,16 +1983,18 @@ function getDojoData() {
 }
 
 function buildLifeOSOutput(entry) {
-  const mode = buildMode(entry);
-  const b = buildAction(entry);
-  const riskLine = buildRisk(entry);
-  const tailBet = buildTailBet(entry);
+  const signals = deriveExecutionSignals(entry);
+  const mode = buildMode(entry, signals);
+  const b = buildAction(entry, signals);
+  const riskLine = buildRisk(entry, signals);
+  const tailBet = buildTailBet(entry, signals);
+  const woop = buildWoopLite(entry, signals);
 
   const lines = [
     "A) 模式判断",
     `${mode}`,
     "",
-    `B) 明日最小行动（${entry.ruin === 1 ? "<=5min" : "<=15min"}）`,
+    `B) 明日最小行动（<=${signals.duration}min）`,
     ...b.map((step, i) => `${i + 1}. ${step}`),
     "",
     "C) 风险点 + 1条防线",
@@ -1704,75 +2005,140 @@ function buildLifeOSOutput(entry) {
     `${tailBet}`
   ];
 
+  if (woop) {
+    lines.push(
+      "",
+      "WOOP-lite（连续失败自动触发）",
+      `W：${woop.wish}`,
+      `O：${woop.obstacle}`,
+      `P：${woop.plan}`
+    );
+  }
+
   latestOutputText = lines.join("\n");
 
   return {
+    signals,
     mode,
     b,
     risk: riskLine,
     tailBet,
+    woop,
     text: latestOutputText
   };
 }
 
-function buildMode(entry) {
+function buildMode(entry, signals) {
   if (entry.ruin === 1) {
     const codeText = entry.ruinCodes.length ? `（${entry.ruinCodes.join(",")}）` : "";
-    return `红灯模式${codeText}：先防崩，再谈推进。今天按底线动作执行，不加码。`;
+    return `红灯模式${codeText}：先防崩，再谈推进。明天把动作挂在“${signals.anchor}”这个锚点上，不加码。`;
+  }
+
+  if (signals.sleepRed) {
+    return `睡眠预警模式：虽然你没手动勾红灯，但睡眠已低于阈值。明天把动作挂在“${signals.anchor}”这个锚点上，只做 5 分钟保守版。`;
+  }
+
+  if (signals.failureStreak >= 2) {
+    return "连续失败模式：现在先修启动阻力，不做补偿性加码。系统会附带 WOOP-lite。";
+  }
+
+  if (signals.attentionLeak) {
+    return "注意力泄漏模式：问题不是没时间，而是设备占走了启动带宽。明天先关干扰，再做唯一动作。";
   }
 
   if (entry.bExecuted === 1) {
-    return "稳态推进模式：闭环在工作，继续低摩擦重复最小行动。";
+    return "稳态推进模式：闭环在工作，继续低摩擦重复同一块输出。";
   }
 
   return "重启模式：昨天中断不追责，今天先用一个最小动作恢复节奏。";
 }
 
-function buildAction(entry) {
-  if (entry.ruin === 1) {
+function buildAction(entry, signals) {
+  if (signals.effectiveRed) {
     const selectedCodes = normalizeRuinCodes(entry.ruinCodes);
-    const mainCode = selectedCodes[0];
+    const mainCode = selectedCodes[0] || (signals.sleepRed ? "S" : "");
 
     if (mainCode && ruinCodeConfig[mainCode]) {
-      const steps = [...ruinCodeConfig[mainCode].bSteps];
+      const steps = [
+        `锚点：${signals.anchor}，不要想整套计划，只开始第一步。`,
+        ...ruinCodeConfig[mainCode].bSteps.slice(0, 2)
+      ];
       const extraLines = selectedCodes
         .slice(1)
         .map((code) => buildSupplementRuinStep(code))
         .filter(Boolean);
-      return [...steps, ...extraLines];
+      return [...steps, ...extraLines, "做到 5 分钟就算完成，今天不追求更多。"];
     }
 
     return [
-      "把今天目标缩到 5 分钟以内。",
-      "只做一个关键动作，不追加任务。",
-      "做完后马上记录一句结果。"
+      `锚点：${signals.anchor}，先开始 2 分钟版本。`,
+      `只推进“${signals.target}”的一小块。`,
+      "做到 5 分钟就停，做完后马上记录一句结果。"
     ];
   }
 
   if (entry.intent) {
     return [
-      `打开与“${entry.intent}”直接相关的唯一页面或文件。`,
-      "计时 15 分钟，只交付一小块可见结果。",
-      "结束后写一句“今天完成了什么”，用于明天 DL-30。"
+      `锚点：${signals.anchor}，只打开与“${entry.intent}”直接相关的唯一页面或文件。`,
+      "只做一个单线程动作，不切任务。",
+      `计时 ${signals.duration} 分钟，只交付一小块可见结果。`
+    ];
+  }
+
+  if (signals.focus === "input-control") {
+    const topApp = entry.topAppName ? `，先避开 ${entry.topAppName}` : "";
+    return [
+      `锚点：${signals.anchor}，手机放远并打开勿扰 ${signals.duration} 分钟${topApp}。`,
+      `只保留一个窗口，开始“${signals.target}”的第一步。`,
+      `做到 ${signals.duration} 分钟或完成标题+3要点就算完成。`
+    ];
+  }
+
+  if (signals.focus === "training") {
+    return [
+      `锚点：${signals.anchor}，先穿鞋并离开桌面。`,
+      `只做 ${signals.duration} 分钟快走 / 爬坡 / 拉伸启动，不想完整训练。`,
+      "做完立刻记结果；不追加更大训练也算完成。"
     ];
   }
 
   return [
-    "默认B（意图为空，按 Output > Training > Input control）：选择 Output。",
-    "计时 15 分钟，完成“标题+3要点”或最小可交付草稿。",
-    "写下一句结果，明天继续同一块，不开新战线。"
+    `锚点：${signals.anchor}，只打开唯一文件或页面。`,
+    `围绕“${signals.target}”推进一小块，默认完成标题+3要点。`,
+    `计时 ${signals.duration} 分钟，到点就停，并留一句结果给明天。`
   ];
 }
 
-function buildRisk(entry) {
+function buildRisk(entry, signals) {
   if (entry.ruin === 1) {
     return buildRuinRiskAndDefense(entry.ruinCodes);
+  }
+
+  if (signals.sleepRed) {
+    return {
+      risk: "睡眠已经低于阈值，明天最容易因为脑子钝而继续拖启动。",
+      defense: "按 S 防线执行：手机不进卧室，明天只认 5 分钟保守版为完成。"
+    };
+  }
+
+  if (signals.failureStreak >= 2) {
+    return {
+      risk: "连续失败后，最常见的问题是想靠“明天多做点”补回来，结果第三天彻底断更。",
+      defense: "先跑 WOOP-lite：只识别一个障碍，并把 B 缩到 2-5 分钟。"
+    };
+  }
+
+  if (signals.attentionLeak) {
+    return {
+      risk: "设备使用已经吃掉了启动带宽，明天一碰手机/软件就会继续分心。",
+      defense: "先跑输入控制：把头号干扰移开，只允许一个窗口和一个动作。"
+    };
   }
 
   if (entry.bExecuted === 0) {
     return {
       risk: "若继续不执行 B，容易触发连续失败并断更。",
-      defense: "固定早间锚点：洗漱后立刻开始 B 的第一步（先做 2 分钟）。"
+      defense: `固定锚点：${signals.anchor}立刻开始 B 的第一步（先做 2 分钟）。`
     };
   }
 
@@ -1782,9 +2148,17 @@ function buildRisk(entry) {
   };
 }
 
-function buildTailBet(entry) {
-  if (entry.ruin === 1) {
+function buildTailBet(entry, signals) {
+  if (signals.effectiveRed) {
     return "完成 B 后再补 2 分钟，记录“防线是否生效 + 明天保持哪条规则”。";
+  }
+
+  if (signals.focus === "training") {
+    return "做完后可选补 2 分钟拉伸，并记下明天继续的同一时段。";
+  }
+
+  if (signals.focus === "input-control") {
+    return "做完后可选顺手把头号干扰 App 再多关 1 个时段，给明天留更干净的入口。";
   }
 
   if (entry.intent) {
@@ -1792,6 +2166,39 @@ function buildTailBet(entry) {
   }
 
   return "完成 B 后可选加 5 分钟，把 Output 从“标题+3要点”扩成一个短段落。";
+}
+
+function buildWoopLite(entry, signals) {
+  if (signals.failureStreak < 2) {
+    return null;
+  }
+
+  const wish = signals.effectiveRed
+    ? "明天至少保住一个不断更的闭环"
+    : `明天按 ${signals.anchor} 启动唯一动作`;
+
+  if (signals.sleepRed) {
+    return {
+      wish,
+      obstacle: "睡眠不足时，大脑会把任何任务都看得过大，起床后容易继续拖。",
+      plan: `如果 到了“${signals.anchor}”这个锚点我还想拖，那么我只做 2 分钟版本，然后立刻停表记录。`
+    };
+  }
+
+  if (signals.attentionLeak) {
+    const blocker = entry.topAppName ? entry.topAppName : "手机/头号干扰软件";
+    return {
+      wish,
+      obstacle: `${blocker} 会在启动前把注意力直接带走，让我以为自己“还没准备好”。`,
+      plan: `如果 我伸手去点 ${blocker}，那么我先把它放远/关掉，到了“${signals.anchor}”只打开唯一文件 2 分钟。`
+    };
+  }
+
+  return {
+    wish,
+    obstacle: "一想到要完整做完，就会把启动动作想得太大，于是连续两天都不开始。",
+    plan: `如果 我脑子里出现“今天得多做点补回来”，那么我到了“${signals.anchor}”只做第一步，并在 5 分钟内结束。`
+  };
 }
 
 function buildRuinRiskAndDefense(codes) {
@@ -2042,6 +2449,7 @@ function toggleRuinCodes() {
 function renderAll(entries, outputObj) {
   const output = outputObj || entries[0]?.output;
   renderExecutionFocus(output);
+  renderWoopLite(output);
 
   if (output?.text) {
     el.output.textContent = output.text;
@@ -2057,6 +2465,7 @@ function renderAll(entries, outputObj) {
   renderHistory(entries);
   renderQuickFillCard();
   renderIntentAssist();
+  renderEngineSignal();
   renderSleepRuinAssist();
 }
 

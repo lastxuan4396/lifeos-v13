@@ -98,6 +98,14 @@ RUIN：0
     <section class="grid">
       <article class="card input-card">
         <h2>DL-30 输入</h2>
+        <div class="mode-switch" role="tablist" aria-label="输入模式">
+          <button id="modeQuick" type="button" class="active" aria-pressed="true">Quick Mode</button>
+          <button id="modeFull" type="button" aria-pressed="false">Full Mode</button>
+        </div>
+        <div id="quickModeBanner" class="hint-card quick-mode-banner">
+          <strong>Quick Mode：今天只判断 3 件事</strong>
+          <p class="hint-copy">1）昨天的 B 做没做 2）今天有没有红灯 3）结果一句话。其他都交给系统。</p>
+        </div>
         <form id="dlForm" autocomplete="off">
           <label>
             日期
@@ -174,29 +182,37 @@ RUIN：0
             </div>
           </div>
 
-          <label>
-            明日意图（可空）
-            <input id="intent" name="intent" type="text" placeholder="不知道写啥就留空；系统会默认给 B">
-          </label>
-          <div id="intentAssist" class="hint-card intent-assist">
-            <strong id="intentAssistTitle">当前建议：可以直接留空</strong>
-            <p id="intentAssistText" class="hint-copy">如果你现在不确定写什么，直接留空，系统会默认给 Output 优先的 B。</p>
-            <div class="quick-fill-actions">
-              <button id="intentApplySuggestion" type="button">用当前建议</button>
+          <div id="engineSignalCard" class="hint-card engine-signal-card">
+            <strong id="engineSignalTitle">当前默认B方向：Output</strong>
+            <p id="engineSignalText" class="hint-copy">如果你留空，系统会优先给你一个锚点式输出动作。</p>
+          </div>
+
+          <details id="intentDetails" class="intent-details">
+            <summary>方向输入（可选，不知道就留空）</summary>
+            <label>
+              明日意图（可空）
+              <input id="intent" name="intent" type="text" placeholder="不知道写啥就留空；系统会默认给 B">
+            </label>
+            <div id="intentAssist" class="hint-card intent-assist">
+              <strong id="intentAssistTitle">当前建议：可以直接留空</strong>
+              <p id="intentAssistText" class="hint-copy">如果你现在不确定写什么，直接留空，系统会默认给 Output 优先的 B。</p>
+              <div class="quick-fill-actions">
+                <button id="intentApplySuggestion" type="button">用当前建议</button>
+              </div>
             </div>
-          </div>
-          <div class="intent-tools">
-            <button id="intentDefault" type="button">不用写（默认B）</button>
-            <button id="intentCarry" type="button">沿用昨天</button>
-            <button id="intentVoice" type="button">语音输入</button>
-            <button id="intentAi" type="button">刷新建议</button>
-          </div>
-          <ul class="intent-rules">
-            <li>不知道写啥：直接留空。</li>
-            <li>只知道方向：写一个词。</li>
-            <li>真有明确推进点：再写一句话。</li>
-            <li>无论如何，最终 B 由系统生成，不由你自己设计。</li>
-          </ul>
+            <div class="intent-tools">
+              <button id="intentDefault" type="button">不用写（默认B）</button>
+              <button id="intentCarry" type="button">沿用昨天</button>
+              <button id="intentVoice" type="button">语音输入</button>
+              <button id="intentAi" type="button">刷新建议</button>
+            </div>
+            <ul class="intent-rules">
+              <li>不知道写啥：直接留空。</li>
+              <li>只知道方向：写一个词。</li>
+              <li>真有明确推进点：再写一句话。</li>
+              <li>无论如何，最终 B 由系统生成，不由你自己设计。</li>
+            </ul>
+          </details>
 
           <details>
             <summary>可选指标（可自动从 Apple 快捷指令填充）</summary>
@@ -287,6 +303,10 @@ RUIN：0
           <pre id="bFocus" class="exec-focus">提交 DL-30 后，这里会锁定显示你明天唯一要做的 B。</pre>
         </div>
         <div id="output" class="output empty">提交 DL-30 后显示 A/B/C/D</div>
+        <div id="woopLiteCard" class="execution-lock woop-card hidden">
+          <p class="exec-label">WOOP-lite（连续失败自动触发）</p>
+          <pre id="woopLiteText" class="exec-focus">连续 2 天 B=0 时，这里会自动给出“障碍 -> if-then 计划”。</pre>
+        </div>
         <div class="actions">
           <button id="copyDl" type="button">复制 DL-30</button>
           <button id="copyOutput" type="button">复制 A/B/C/D</button>
