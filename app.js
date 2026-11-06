@@ -296,6 +296,7 @@ function bindEvents() {
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
   });
+  document.getElementById("useTodayAction")?.addEventListener("click", useTodayAction);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) renderTodayAction(loadEntries());
   });
@@ -2821,6 +2822,30 @@ function renderTodayAction(entries) {
   section.classList.toggle("hidden", steps.length === 0);
   document.getElementById("todayActionSource").textContent = steps.length ? `来自 ${yesterday} 的记录` : "";
   document.getElementById("todayActionSteps").textContent = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
+}
+
+function useTodayAction() {
+  const today = localDateISO(new Date());
+  const hint = document.getElementById("todayActionHint");
+  if (el.date.value !== today) {
+    hint.textContent = "表单日期不是今天，请先核对日期和已有草稿，再使用此快捷填写。";
+    el.date.focus({ preventScroll: true });
+    el.form.scrollIntoView({ block: "start", behavior: "auto" });
+    return;
+  }
+  const yesterday = loadEntries().find((item) => item.date === shiftDateISO(today, -1));
+  const steps = Array.isArray(yesterday?.output?.b) ? yesterday.output.b : [];
+  const step = steps.find((item) => typeof item === "string" && item.trim() && !item.trim().startsWith("锚点：")) || getPrimaryBStep(yesterday);
+  if (!step) {
+    hint.textContent = "没有找到昨天生成的行动，请刷新后重试。";
+    return;
+  }
+  if (el.behavior.value.trim() && !confirm("行为栏已有内容，是否用今天的行动替换？")) return;
+  el.behavior.value = `执行今日B：${step}`;
+  el.behavior.dispatchEvent(new Event("input", { bubbles: true }));
+  hint.textContent = "已填入行为，请按实际情况修改，并继续填写结果。";
+  el.behavior.focus({ preventScroll: true });
+  el.form.scrollIntoView({ block: "start", behavior: "auto" });
 }
 
 function renderPatchReminder(entries) {
