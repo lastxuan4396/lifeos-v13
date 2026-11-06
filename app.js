@@ -1,4 +1,4 @@
-// lifeos-shell-v79
+// lifeos-shell-v80
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -64,6 +64,7 @@ let latestDojoStarterText = "";
 let syncQueue = Promise.resolve();
 let historyLimit = 12;
 let backupPreviewRequest = 0;
+const unreadableCollections = new Set();
 let dailyDraftSnapshot = null;
 let dailyDraftSaveFailed = false;
 const workflowDraftSnapshots = new Map([[WR_DRAFT_KEY, null], [PATCH_DRAFT_KEY, null], [DOJO_DRAFT_KEY, null]]);
@@ -360,6 +361,7 @@ function initWorkspaceDraftStatus() {
 }
 
 function bindEvents() {
+  document.getElementById("exportRawRecovery")?.addEventListener("click", exportRawRecovery);
   document.getElementById("openSyncSettings")?.addEventListener("click", () => {
     document.getElementById("secondaryWorkspace").open = true;
     const details = document.getElementById("dataSettings");
@@ -481,6 +483,7 @@ function bindEvents() {
       document.getElementById("outputExternalNotice").classList.remove("hidden");
     }
     if (event.key === WR_STORAGE_KEY || event.key === null) renderWeeklyAvailability();
+    if (event.key === PATCH_STORAGE_KEY || event.key === null) loadCollection(PATCH_STORAGE_KEY);
     for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY, DOJO_DRAFT_KEY]) {
       if ((event.key === key || event.key === null) && event.newValue !== workflowDraftSnapshots.get(key)) showWorkflowDraftConflict(key);
     }
@@ -1524,19 +1527,23 @@ function validateBackupDrafts(payload) {
 }
 
 function onExportCsv() {
-  const csv = buildCsvExport();
-  const filename = `lifeos-backup-${localDateISO(new Date())}.csv`;
-
-  downloadFile(filename, `\uFEFF${csv}`, "text/csv;charset=utf-8");
-  setModuleOutput(el.dataOutput, `已导出 CSV：${filename}`, "导出/导入结果会显示在这里");
+  try {
+    assertCollectionsReadable();
+    const csv = buildCsvExport();
+    const filename = `lifeos-backup-${localDateISO(new Date())}.csv`;
+    downloadFile(filename, `\uFEFF${csv}`, "text/csv;charset=utf-8");
+    setModuleOutput(el.dataOutput, `已导出 CSV：${filename}`, "导出/导入结果会显示在这里");
+  } catch (error) { setModuleOutput(el.dataOutput, `导出失败：${String(error?.message || error)}`, "导出/导入结果会显示在这里"); }
 }
 
 function onExportMarkdown() {
-  const markdown = buildMarkdownExport();
-  const filename = `lifeos-backup-${localDateISO(new Date())}.md`;
-
-  downloadFile(filename, markdown, "text/markdown;charset=utf-8");
-  setModuleOutput(el.dataOutput, `已导出 Markdown：${filename}`, "导出/导入结果会显示在这里");
+  try {
+    assertCollectionsReadable();
+    const markdown = buildMarkdownExport();
+    const filename = `lifeos-backup-${localDateISO(new Date())}.md`;
+    downloadFile(filename, markdown, "text/markdown;charset=utf-8");
+    setModuleOutput(el.dataOutput, `已导出 Markdown：${filename}`, "导出/导入结果会显示在这里");
+  } catch (error) { setModuleOutput(el.dataOutput, `导出失败：${String(error?.message || error)}`, "导出/导入结果会显示在这里"); }
 }
 
 async function renderBackupPreview() {
@@ -1577,7 +1584,10 @@ async function onImportData() {
     const restoreDrafts = document.getElementById("restoreBackupDrafts").checked;
     const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
     const draftMessage = restoreDrafts ? (drafts ? `将替换当前每日、周复盘和 Patch 草稿；备份中为空的草稿会清除。${Object.prototype.hasOwnProperty.call(drafts, "dojo") ? "训练输入也会按备份恢复。" : "备份不含训练输入，本机训练输入保持不变。"}` : "该备份没有草稿，本机草稿保持不变。") : "本机草稿保持不变。";
-    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条。\n${draftMessage}\n建议先导出当前 JSON。确认覆盖？`);
+    const currentCounts = `每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条`;
+    const issueMessage = unreadableCollections.size ? "\n部分当前记录无法读取，上述数量不完整；导入会覆盖这些原始数据。请先用页面顶部的按钮下载原始数据供恢复。" : "";
+    const exportAdvice = unreadableCollections.size ? "确认已保存可用于恢复的原始数据后再继续。" : "建议先导出当前 JSON。";
+    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：${currentCounts}。${issueMessage}\n${draftMessage}\n${exportAdvice}确认覆盖？`);
     if (!ok) return;
 
     replaceBackupData({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta }, drafts);
@@ -4150,16 +4160,55 @@ function saveEntries(entries) {
 
 function loadCollection(key) {
   try {
-    const raw = localStorage.getItem(key);
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    return readCollectionStrict(key);
   } catch (error) {
     console.error("Failed to load collection", key, error);
     return [];
   }
 }
 
+function readCollectionStrict(key) {
+  const names = { [STORAGE_KEY]: "每日记录", [WR_STORAGE_KEY]: "周复盘", [PATCH_STORAGE_KEY]: "Patch" };
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw === null ? [] : JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.some((item) => !item || typeof item !== "object" || Array.isArray(item))) throw new Error("invalid collection");
+    unreadableCollections.delete(key);
+    renderStorageIssue();
+    return parsed;
+  } catch {
+    unreadableCollections.add(key);
+    renderStorageIssue();
+    throw new Error(`${names[key] || "本地记录"}无法读取。原始数据未更改，请先下载原始数据供恢复。`);
+  }
+}
+
+function renderStorageIssue() {
+  const section = document.getElementById("storageIssue");
+  if (!section) return;
+  const names = { [STORAGE_KEY]: "每日记录", [WR_STORAGE_KEY]: "周复盘", [PATCH_STORAGE_KEY]: "Patch" };
+  section.classList.toggle("hidden", unreadableCollections.size === 0);
+  document.getElementById("storageIssueText").textContent = unreadableCollections.size ? `${[...unreadableCollections].map((key) => names[key] || "本地记录").join("、")}无法读取。为避免覆盖，相关保存、常规导出和同步已暂停；请先下载原始数据，再考虑从可靠备份恢复。` : "";
+}
+
+function assertCollectionsReadable() {
+  for (const key of [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY]) readCollectionStrict(key);
+}
+
+function exportRawRecovery() {
+  try {
+    const keys = [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY, APPLE_SYNC_META_KEY, DRAFT_KEY, WR_DRAFT_KEY, PATCH_DRAFT_KEY, DOJO_DRAFT_KEY];
+    const raw = Object.fromEntries(keys.map((key) => [key, localStorage.getItem(key)]));
+    const filename = `lifeos-raw-recovery-${localDateISO(new Date())}.json`;
+    downloadFile(filename, JSON.stringify({ type: "lifeos-raw-recovery-v1", raw }, null, 2), "application/json;charset=utf-8");
+    document.getElementById("rawRecoveryStatus").textContent = `已请求下载 ${filename}；它用于保留原始数据，不能直接作为常规备份导入。`;
+  } catch {
+    document.getElementById("rawRecoveryStatus").textContent = "无法读取或下载原始数据，请保留当前浏览器数据并检查存储权限。";
+  }
+}
+
 function saveCollection(key, entries) {
+  readCollectionStrict(key);
   localStorage.setItem(key, JSON.stringify(entries));
   if ([STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].includes(key)) markPlaybookOutputStale();
 }
@@ -4234,9 +4283,9 @@ function buildBackupPayload() {
       note: "数据默认保存在当前浏览器；启用 Gist 同步后按设置上传。"
     },
     data: {
-      dailyLogs: loadEntries(),
-      weeklyReviews: loadCollection(WR_STORAGE_KEY),
-      systemPatches: loadCollection(PATCH_STORAGE_KEY),
+      dailyLogs: readCollectionStrict(STORAGE_KEY),
+      weeklyReviews: readCollectionStrict(WR_STORAGE_KEY),
+      systemPatches: readCollectionStrict(PATCH_STORAGE_KEY),
       appleSyncMeta: loadAppleSyncMeta()
     }
   };
@@ -4256,17 +4305,17 @@ function buildCsvExport() {
     type, key || "", JSON.stringify(entry), entry.createdAt || "",
     ...fields.map(([, name]) => Array.isArray(entry[name]) ? entry[name].join(" / ") : entry[name] ?? "")
   ]);
-  loadEntries().forEach((entry) => add("dailyLog", entry.date, entry));
-  loadCollection(WR_STORAGE_KEY).forEach((entry) => add("weeklyReview", entry.weekRange, entry));
-  loadCollection(PATCH_STORAGE_KEY).forEach((entry) => add("systemPatch", entry.startDate, entry));
+  readCollectionStrict(STORAGE_KEY).forEach((entry) => add("dailyLog", entry.date, entry));
+  readCollectionStrict(WR_STORAGE_KEY).forEach((entry) => add("weeklyReview", entry.weekRange, entry));
+  readCollectionStrict(PATCH_STORAGE_KEY).forEach((entry) => add("systemPatch", entry.startDate, entry));
 
   return rows.map((row) => row.map(toCsvCell).join(",")).join("\n");
 }
 
 function buildMarkdownExport() {
-  const daily = loadEntries();
-  const wr = loadCollection(WR_STORAGE_KEY);
-  const patches = loadCollection(PATCH_STORAGE_KEY);
+  const daily = readCollectionStrict(STORAGE_KEY);
+  const wr = readCollectionStrict(WR_STORAGE_KEY);
+  const patches = readCollectionStrict(PATCH_STORAGE_KEY);
 
   const lines = [
     "# LifeOS 数据导出",

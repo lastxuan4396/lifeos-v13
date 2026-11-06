@@ -1,8 +1,8 @@
 // Cache only the static app shell; personal records remain in localStorage.
 const CACHE_PREFIX = `lifeos-shell-${encodeURIComponent(self.registration.scope)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}v79`;
-const SHELL_MARKER = "lifeos-shell-v79";
-const shellUrls = ["./", "./index.html", "./styles-v79.css", "./app-v79.js"].map((path) => new URL(path, self.registration.scope).href);
+const CACHE_NAME = `${CACHE_PREFIX}v80`;
+const SHELL_MARKER = "lifeos-shell-v80";
+const shellUrls = ["./", "./index.html", "./styles-v80.css", "./app-v80.js"].map((path) => new URL(path, self.registration.scope).href);
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
