@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v89 -->
+<!-- lifeos-shell-v90 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v89.css">
+  <link rel="stylesheet" href="./styles-v90.css">
 </head>
 <body>
   <main class="page">
@@ -18,6 +18,10 @@
         数据默认保存在当前浏览器。可导出备份；配置并启用 GitHub Gist 同步后，记录会按同步设置上传。
       </p>
       <p id="offlineStatus" class="data-policy" role="status">正在检查离线功能…</p>
+      <nav class="hero-shortcuts" aria-label="页面快捷入口">
+        <button id="goToDaily" type="button">填写每日记录</button>
+        <button id="goToWorkspace" type="button">查看记录与备份</button>
+      </nav>
       <button id="checkUpdate" type="button" class="hidden">检查更新</button>
       <div id="updateAvailable" class="hidden">
         <p class="data-policy">发现新版本，保存正在填写的内容后可以更新。</p>
@@ -139,7 +143,7 @@ RUIN：0
 
     <section class="grid">
       <article class="card input-card">
-        <h2>DL-30 输入</h2>
+        <h2 id="dailyInputTitle" tabindex="-1">DL-30 输入</h2>
         <div class="mode-switch" role="tablist" aria-label="输入模式">
           <button id="modeQuick" type="button" class="active" aria-pressed="true">Quick Mode</button>
           <button id="modeFull" type="button" aria-pressed="false">Full Mode</button>
@@ -713,6 +717,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v89.js" defer></script>
+  <script src="./app-v90.js" defer></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* lifeos-shell-v89 */
+/* lifeos-shell-v90 */
 :root {
   --bg: #f4f4ee;
   --ink: #1f1e17;
@@ -37,6 +37,13 @@ body.quick-mode .help-card {
 
 .hero {
   margin-bottom: 18px;
+}
+
+.hero-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .help-card {

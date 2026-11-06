@@ -1,4 +1,4 @@
-// lifeos-shell-v89
+// lifeos-shell-v90
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -362,6 +362,18 @@ function initWorkspaceDraftStatus() {
 }
 
 function bindEvents() {
+  document.getElementById("goToDaily")?.addEventListener("click", () => {
+    const title = document.getElementById("dailyInputTitle");
+    title.focus({ preventScroll: true });
+    title.scrollIntoView({ block: "start", behavior: "auto" });
+  });
+  document.getElementById("goToWorkspace")?.addEventListener("click", () => {
+    const workspace = document.getElementById("secondaryWorkspace");
+    workspace.open = true;
+    const summary = workspace.querySelector("summary");
+    summary.focus({ preventScroll: true });
+    summary.scrollIntoView({ block: "start", behavior: "auto" });
+  });
   document.getElementById("exportRawRecovery")?.addEventListener("click", exportRawRecovery);
   document.getElementById("openSyncSettings")?.addEventListener("click", () => {
     document.getElementById("secondaryWorkspace").open = true;
