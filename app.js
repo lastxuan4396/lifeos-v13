@@ -4,6 +4,9 @@ const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
 const APPLE_SYNC_META_KEY = "lifeos_v13_apple_sync_meta";
 const SYNC_SETTINGS_KEY = "lifeos_v13_sync_settings";
 const UI_MODE_KEY = "lifeos_v13_ui_mode";
+const DRAFT_KEY = "lifeos_v13_dl_draft";
+const WR_DRAFT_KEY = "lifeos_v13_wr_draft";
+const PATCH_DRAFT_KEY = "lifeos_v13_patch_draft";
 const SYNC_FILENAME = "lifeos-sync.json";
 const BACKUP_VERSION = "1.0";
 const CODE_ORDER = ["S", "T", "P"];
@@ -54,6 +57,8 @@ let latestPatchOutputText = "";
 let latestPlaybookOutputText = "";
 let latestDojoOutputText = "";
 let latestDojoStarterText = "";
+let syncQueue = Promise.resolve();
+let historyLimit = 12;
 
 const el = {
   modeQuick: document.getElementById("modeQuick"),
@@ -183,9 +188,19 @@ function init() {
   }
 
   bindEvents();
+  restoreWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  restoreWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
   hydrateSyncSettingsForm();
-  applyAppleAutofillFromUrl();
-  hydrateMetricsFromLastAppleSync();
+  const hasDraft = restoreDailyDraft();
+  if (hasDraft) {
+    const params = new URLSearchParams(window.location.search);
+    const bridgeKeys = ["sleepHours", "sleep", "sleep_h", "trainingMinutes", "exerciseMinutes", "workoutMinutes", "deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes", "outputWords", "words", "writingWords", "appUsageMinutes", "softwareUsageMinutes", "usageMinutes", "screenMinutes", "phoneUsageMinutes", "mobileUsageMinutes", "iosUsageMinutes", "macUsageMinutes", "desktopUsageMinutes", "topAppName", "topApp", "topAppMinutes", "topAppUsageMinutes", "steps", "stepCount", "activeCalories", "calories", "moveCalories", "distanceKm", "workoutDistanceKm", "distance"];
+    if (bridgeKeys.some((key) => params.has(key))) document.getElementById("pendingBridge").classList.remove("hidden");
+  } else {
+    applyAppleAutofillFromUrl();
+    hydrateMetricsFromLastAppleSync();
+  }
+  toggleRuinCodes();
   renderAll(loadEntries());
   renderWorkflowPanels();
   renderYesterdayBContext();
@@ -195,6 +210,24 @@ function init() {
   renderSleepRuinAssist();
   renderAppleSyncStatus();
   renderSyncStatus();
+  initOfflineSupport();
+}
+
+async function initOfflineSupport() {
+  const status = document.getElementById("offlineStatus");
+  if (!status) return;
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) {
+    status.textContent = "离线打开不可用：请通过 HTTPS 或 localhost 访问。已打开的页面仍可在本机保存记录。";
+    return;
+  }
+  try {
+    await navigator.serviceWorker.register("./sw.js");
+    await navigator.serviceWorker.ready;
+    status.textContent = "离线页面已准备好；云同步仍需联网。";
+  } catch (error) {
+    status.textContent = "离线页面准备失败，请联网重试；记录仍保存在当前浏览器。";
+    console.warn("Offline setup failed", error);
+  }
 }
 
 function initUIMode() {
@@ -227,6 +260,15 @@ function setUIMode(mode) {
 }
 
 function bindEvents() {
+  document.getElementById("applyPendingBridge")?.addEventListener("click", () => {
+    try {
+      if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
+      localStorage.removeItem(DRAFT_KEY);
+      window.location.reload();
+    } catch (error) {
+      document.getElementById("draftStatus").textContent = "无法清除草稿，请检查浏览器存储权限。";
+    }
+  });
   if (el.modeQuick) {
     el.modeQuick.addEventListener("click", () => setUIMode("quick"));
   }
@@ -237,7 +279,28 @@ function bindEvents() {
 
   if (el.form) {
     el.form.addEventListener("submit", onSubmit);
+    el.form.addEventListener("input", saveDailyDraft);
+    el.form.addEventListener("change", saveDailyDraft);
+    el.form.addEventListener("click", (event) => {
+      const button = event.target.closest("button[type='button']");
+      if (button && button !== el.quickZeroDay && button.id !== "loadDailyRecord") setTimeout(saveDailyDraft, 0);
+    });
   }
+
+  document.getElementById("openPatch")?.addEventListener("click", () => {
+    const details = document.getElementById("patchDetails");
+    details.open = true;
+    details.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  document.getElementById("loadDailyRecord")?.addEventListener("click", () => loadDailyRecord(el.date.value));
+  document.getElementById("historyMore")?.addEventListener("click", () => {
+    historyLimit += 12;
+    renderHistory(loadEntries());
+  });
+  document.getElementById("historyLess")?.addEventListener("click", () => {
+    historyLimit = 12;
+    renderHistory(loadEntries());
+  });
 
   if (el.date) {
     el.date.addEventListener("change", () => {
@@ -246,6 +309,7 @@ function bindEvents() {
       renderIntentAssist();
       renderEngineSignal();
       renderSleepRuinAssist();
+      renderDailyRecordAvailability();
     });
   }
 
@@ -390,11 +454,13 @@ function bindEvents() {
 
   if (el.wrForm) {
     el.wrForm.addEventListener("submit", onWrSubmit);
+    ["input", "change"].forEach((eventName) => el.wrForm.addEventListener(eventName, () => saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge")));
   }
 
   if (el.wrAutofill) {
     el.wrAutofill.addEventListener("click", onWrAutofill);
   }
+  document.getElementById("suggestExperiment")?.addEventListener("click", onSuggestExperiment);
 
   if (el.copyWrOutput) {
     el.copyWrOutput.addEventListener("click", () => {
@@ -408,6 +474,7 @@ function bindEvents() {
 
   if (el.patchForm) {
     el.patchForm.addEventListener("submit", onPatchSubmit);
+    ["input", "change"].forEach((eventName) => el.patchForm.addEventListener(eventName, () => saveWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge")));
   }
 
   if (el.copyPatchOutput) {
@@ -489,6 +556,92 @@ function bindEvents() {
   }
 }
 
+function renderDailyRecordAvailability() {
+  const record = loadEntries().find((item) => item.date === el.date.value);
+  const button = document.getElementById("loadDailyRecord");
+  const hint = document.getElementById("loadDailyHint");
+  if (!button || !hint) return;
+  button.disabled = !record;
+  hint.textContent = record ? `${record.date} 已有记录，可以载入后修改。` : "所选日期暂无保存的记录。";
+}
+
+function loadDailyRecord(date, focusForm = false) {
+  const record = loadEntries().find((item) => item.date === date);
+  if (!record) { renderDailyRecordAvailability(); return; }
+  try {
+    if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("载入记录会替换当前表单里的未提交内容。是否继续？")) return;
+  } catch {
+    document.getElementById("draftStatus").textContent = "无法读取草稿，暂未载入记录。";
+    return;
+  }
+  el.date.value = record.date;
+  for (const field of el.form.elements) {
+    if (!field.name || field.name === "date") continue;
+    const value = record[field.name];
+    if (field.type === "radio") field.checked = value !== null && value !== undefined && String(value) === field.value;
+    else if (field.type === "checkbox") field.checked = Array.isArray(value) && value.includes(field.value);
+    else if (field.tagName === "INPUT" || field.tagName === "TEXTAREA" || field.tagName === "SELECT") field.value = value ?? "";
+  }
+  toggleRuinCodes();
+  renderAll(loadEntries(), record.output || null, record.date);
+  renderYesterdayBContext();
+  renderQuickFillCard();
+  renderIntentAssist();
+  renderEngineSignal();
+  renderSleepRuinAssist();
+  renderDailyRecordAvailability();
+  if (saveDailyDraft()) document.getElementById("draftStatus").textContent = "已载入记录；修改后请点击保存。";
+  if (focusForm) {
+    el.date.focus({ preventScroll: true });
+    el.form.scrollIntoView({ block: "start", behavior: "auto" });
+  }
+}
+
+function saveDailyDraft() {
+  const fields = Array.from(el.form.elements)
+    .filter((field) => field.name && !field.disabled && field.type !== "file")
+    .map((field) => ({ name: field.name, type: field.type, value: field.value, checked: field.checked }));
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(fields));
+    document.getElementById("draftStatus").textContent = "草稿已保存在当前浏览器";
+    return true;
+  } catch (error) {
+    document.getElementById("draftStatus").textContent = "草稿保存失败，请检查浏览器存储空间或权限。";
+    return false;
+  }
+}
+
+function restoreDailyDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (raw === null) return false;
+    const fields = JSON.parse(raw);
+    if (!Array.isArray(fields)) throw new Error("Invalid draft");
+    const controls = Array.from(el.form.elements);
+    for (const saved of fields) {
+      const field = controls.find((item) => item.name === saved.name && item.type === saved.type &&
+        ((item.type !== "radio" && item.type !== "checkbox") || item.value === saved.value));
+      if (!field) continue;
+      if (field.type === "radio" || field.type === "checkbox") field.checked = !!saved.checked;
+      else field.value = saved.value;
+    }
+    document.getElementById("draftStatus").textContent = "已恢复未提交的草稿，请核对日期后提交。";
+    return true;
+  } catch (error) {
+    document.getElementById("draftStatus").textContent = "草稿无法读取，原有记录不受影响。";
+    return true;
+  }
+}
+
+function clearDailyDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+    document.getElementById("draftStatus").textContent = "记录已保存，草稿已清除。";
+  } catch (error) {
+    document.getElementById("draftStatus").textContent = "记录已保存，但草稿清除失败。";
+  }
+}
+
 function onSubmit(event) {
   event.preventDefault();
   const entry = getFormData();
@@ -499,18 +652,30 @@ function onSubmit(event) {
   }
 
   const entries = loadEntries();
+  if (!confirmDailyOverwrite(entries, entry.date)) return;
   const output = buildLifeOSOutput(entry);
   entry.output = output;
   entry.createdAt = new Date().toISOString();
 
   const nextEntries = upsertEntryByDate(entries, entry);
-  saveEntries(nextEntries);
-  renderAll(nextEntries, output);
+  if (!saveDailyEntries(nextEntries)) return;
+  clearDailyDraft();
+  renderAll(nextEntries, output, entry.date);
   renderYesterdayBContext();
+  showSavedOutputOnSmallScreen();
   void maybeAutoSync("DL");
 }
 
 function onZeroDay() {
+  if (!el.date.checkValidity()) {
+    el.date.reportValidity();
+    return;
+  }
+  const bRadio = el.form.querySelector("input[name='bExecuted']");
+  if (!bRadio.checkValidity()) {
+    bRadio.reportValidity();
+    return;
+  }
   const entry = getFormData();
 
   if (!entry.behavior || !entry.result) {
@@ -522,30 +687,95 @@ function onZeroDay() {
   entry.intent = "";
   entry.ruinCodes = entry.ruin === 1 ? entry.ruinCodes : [];
   if (entry.ruin === 1 && entry.ruinCodes.length === 0) {
-    entry.ruinCodes = ["P"];
+    alert("RUIN=1 时，请至少勾选一个 RUIN 码（S/T/P）。");
+    return;
   }
 
   const entries = loadEntries();
+  if (!confirmDailyOverwrite(entries, entry.date)) return;
   const output = buildLifeOSOutput(entry);
   entry.output = output;
   entry.createdAt = new Date().toISOString();
 
   const nextEntries = upsertEntryByDate(entries, entry);
-  saveEntries(nextEntries);
-  renderAll(nextEntries, output);
+  if (!saveDailyEntries(nextEntries)) return;
+  clearDailyDraft();
+  renderAll(nextEntries, output, entry.date);
   renderYesterdayBContext();
+  showSavedOutputOnSmallScreen();
   void maybeAutoSync("Zero-Day");
+}
+
+function showSavedOutputOnSmallScreen() {
+  if (!window.matchMedia("(max-width: 1024px)").matches) return;
+  const outputCard = document.getElementById("outputCard");
+  if (!outputCard) return;
+  outputCard.focus({ preventScroll: true });
+  outputCard.scrollIntoView({ block: "start", behavior: "auto" });
+}
+
+function confirmDailyOverwrite(entries, date) {
+  const previous = entries.find((item) => item.date === date);
+  if (!previous) return true;
+  return confirm(`${date} 已有一条记录：\n行为：${previous.behavior || "（空）"}\n结果：${previous.result || "（空）"}\n\n继续会用当前表单覆盖当天记录。是否继续？`);
+}
+
+function saveDailyEntries(entries) {
+  try {
+    saveEntries(entries);
+    return true;
+  } catch (error) {
+    document.getElementById("draftStatus").textContent = "记录保存失败，请检查浏览器存储空间；请勿关闭页面，并先复制当前内容。";
+    return false;
+  }
+}
+
+function saveWorkflowDraft(form, key, statusId, badgeId) {
+  const fields = Array.from(form.elements).filter((field) => field.name && !field.disabled)
+    .map((field) => ({ name: field.name, value: field.value }));
+  try {
+    localStorage.setItem(key, JSON.stringify(fields));
+    document.getElementById(statusId).textContent = "草稿已保存在当前浏览器。";
+    document.getElementById(badgeId).classList.remove("hidden");
+  } catch {
+    document.getElementById(statusId).textContent = "草稿保存失败，请检查浏览器存储空间或权限。";
+  }
+}
+
+function restoreWorkflowDraft(form, key, statusId, badgeId) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return;
+    const fields = JSON.parse(raw);
+    if (!Array.isArray(fields)) throw new Error("Invalid draft");
+    for (const saved of fields) {
+      const field = Array.from(form.elements).find((item) => item.name === saved.name);
+      if (field && typeof saved.value === "string") field.value = saved.value;
+    }
+    document.getElementById(statusId).textContent = "已恢复未提交草稿，请检查内容后保存。";
+    document.getElementById(badgeId).classList.remove("hidden");
+  } catch {
+    document.getElementById(statusId).textContent = "草稿无法读取，已有记录不受影响。";
+  }
+}
+
+function clearWorkflowDraft(key, statusId, badgeId) {
+  try {
+    localStorage.removeItem(key);
+    document.getElementById(statusId).textContent = "记录已保存，草稿已清除。";
+    document.getElementById(badgeId).classList.add("hidden");
+  } catch {
+    document.getElementById(statusId).textContent = "记录已保存，但草稿清除失败。";
+  }
 }
 
 function onWrSubmit(event) {
   event.preventDefault();
   const data = getWrData();
+  const entries = loadCollection(WR_STORAGE_KEY);
+  if (entries.some((item) => item.weekRange === data.weekRange) && !confirm(`周期 ${data.weekRange} 已有周复盘，继续将覆盖该周期记录。是否继续？`)) return;
 
   const outputText = buildWrOutput(data);
-  latestWrOutputText = outputText;
-  setModuleOutput(el.wrOutput, outputText, "提交 WR-10 后显示周总结与下周执行稿");
-
-  const entries = loadCollection(WR_STORAGE_KEY);
   const entry = {
     ...data,
     outputText,
@@ -553,7 +783,13 @@ function onWrSubmit(event) {
   };
 
   const next = upsertByKey(entries, entry, "weekRange");
-  saveCollection(WR_STORAGE_KEY, next);
+  try { saveCollection(WR_STORAGE_KEY, next); } catch {
+    document.getElementById("wrDraftStatus").textContent = "保存失败，请检查浏览器存储空间；请勿关闭页面，并先复制当前内容。";
+    return;
+  }
+  latestWrOutputText = outputText;
+  setModuleOutput(el.wrOutput, outputText, "提交 WR-10 后显示周总结与下周执行稿");
+  clearWorkflowDraft(WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
   void maybeAutoSync("WR-10");
 }
 
@@ -584,14 +820,42 @@ function onWrAutofill() {
     el.wrCodeP.value = String(snapshot.codeCount.P);
   }
   if (el.wrSleepPass) {
-    el.wrSleepPass.checked = snapshot.sleepPass === 1;
+    el.wrSleepPass.value = snapshot.sleepPass === null ? "" : String(snapshot.sleepPass);
   }
   if (el.wrTrainingPass) {
-    el.wrTrainingPass.checked = snapshot.trainingPass === 1;
+    el.wrTrainingPass.value = snapshot.trainingPass === null ? "" : String(snapshot.trainingPass);
   }
   if (el.wrOutputPass) {
-    el.wrOutputPass.checked = snapshot.outputPass === 1;
+    el.wrOutputPass.value = snapshot.outputPass === null ? "" : String(snapshot.outputPass);
   }
+  saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+}
+
+function onSuggestExperiment() {
+  const fields = ["wrExpName", "wrExpHypothesis", "wrExpAction", "wrExpMetric"].map((id) => document.getElementById(id));
+  if (fields.some((field) => field.value.trim()) && !confirm("实验栏已有内容，生成草案会替换这四项。是否继续？")) return;
+  const snap = getScoreSnapshot(loadEntries());
+  let reason;
+  let values;
+  if (snap.ruinDays >= 2) {
+    reason = `近 7 天有 ${snap.ruinDays} 天标记红灯，先试一周低负荷启动。`;
+    values = ["五分钟保底", "如果动作足够小，低状态时也更容易启动", "每天选一个关键动作，只做 5 分钟", "7 天中至少 5 天完成并记录"];
+  } else if (snap.dl < 3) {
+    reason = `近 7 天有 ${snap.dl} 条记录，先尝试建立轻量记录习惯。`;
+    values = ["固定时刻记录", "如果给记录一个固定时刻，更容易持续", "每天选一个方便的时刻，填写一条简短 DL-30", "7 天中至少 5 天完成记录"];
+  } else if (snap.bObserved < 3) {
+    reason = `近 7 天有 ${snap.bObserved} 条记录包含明确的昨日 B 执行状态，先积累观察。`;
+    values = ["记录执行状态", "如果每天如实记录执行情况，就能更清楚地找到阻力", "每天填写一条简短 DL-30，并选择昨日 B 状态", "7 天中至少 5 天完成记录"];
+  } else if (snap.bFailed > 0) {
+    reason = `近 7 天有 ${snap.bFailed} 条记录标记昨日 B 未执行，先降低启动门槛。`;
+    values = ["五分钟启动", "如果先做最小一步，开始执行的阻力会降低", "每天在固定时刻开始唯一 B，先做 5 分钟", "7 天中至少 5 天完成启动并记录"];
+  } else {
+    reason = `近 7 天已有 ${snap.dl} 条记录，先维持已有节奏。`;
+    values = ["维持一个动作", "如果保持单一小动作，更容易稳定延续", "每天在固定时刻执行唯一 B，不超过 15 分钟", "7 天中至少 5 天完成并记录"];
+  }
+  fields.forEach((field, index) => { field.value = values[index]; });
+  document.getElementById("experimentHint").textContent = `${reason}这只是草案，请按自己的情况修改。`;
+  saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
 }
 
 function onPatchSubmit(event) {
@@ -599,8 +863,6 @@ function onPatchSubmit(event) {
   const data = getPatchData();
 
   const outputText = buildPatchOutput(data);
-  latestPatchOutputText = outputText;
-  setModuleOutput(el.patchOutput, outputText, "提交 System Patch 后显示新规则（<=3条）");
 
   const entries = loadCollection(PATCH_STORAGE_KEY);
   entries.unshift({
@@ -608,7 +870,13 @@ function onPatchSubmit(event) {
     outputText,
     createdAt: new Date().toISOString()
   });
-  saveCollection(PATCH_STORAGE_KEY, entries.slice(0, 30));
+  try { saveCollection(PATCH_STORAGE_KEY, entries.slice(0, 30)); } catch {
+    document.getElementById("patchDraftStatus").textContent = "保存失败，请检查浏览器存储空间；请勿关闭页面，并先复制当前内容。";
+    return;
+  }
+  latestPatchOutputText = outputText;
+  setModuleOutput(el.patchOutput, outputText, "提交 System Patch 后显示新规则（<=3条）");
+  clearWorkflowDraft(PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
   void maybeAutoSync("Patch");
 }
 
@@ -666,31 +934,14 @@ async function onImportData() {
     return;
   }
 
-  const ok = confirm("导入会覆盖当前本地数据（DL/WR/Patch）。确认继续？");
-  if (!ok) {
-    return;
-  }
-
   try {
     const raw = await file.text();
     const parsed = JSON.parse(raw);
-    const data = parsed?.data || parsed;
+    const { dailyLogs, weeklyReviews, systemPatches, appleSyncMeta } = validateBackup(parsed);
+    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条。\n建议先导出当前 JSON。确认覆盖？`);
+    if (!ok) return;
 
-    const dailyLogs = ensureArray(data.dailyLogs);
-    const weeklyReviews = ensureArray(data.weeklyReviews);
-    const systemPatches = ensureArray(data.systemPatches);
-    const appleSyncMeta = data.appleSyncMeta && typeof data.appleSyncMeta === "object"
-      ? data.appleSyncMeta
-      : null;
-
-    saveEntries(dailyLogs);
-    saveCollection(WR_STORAGE_KEY, weeklyReviews);
-    saveCollection(PATCH_STORAGE_KEY, systemPatches);
-    if (appleSyncMeta) {
-      localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(appleSyncMeta));
-    } else {
-      localStorage.removeItem(APPLE_SYNC_META_KEY);
-    }
+    replaceBackupData({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta });
 
     renderAll(loadEntries());
     renderWorkflowPanels();
@@ -712,6 +963,83 @@ async function onImportData() {
       `导入失败：${String(error?.message || error)}`,
       "导出/导入结果会显示在这里"
     );
+  }
+}
+
+function validateBackup(payload) {
+  const data = payload?.data ?? payload;
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("不是有效的 LifeOS 备份对象。");
+  for (const key of ["dailyLogs", "weeklyReviews", "systemPatches"]) {
+    if (!Array.isArray(data[key])) throw new Error(`备份缺少有效的 ${key} 列表，未修改现有数据。`);
+    if (data[key].some((item) => !item || typeof item !== "object" || Array.isArray(item))) {
+      throw new Error(`${key} 包含无效记录，未修改现有数据。`);
+    }
+  }
+  const dates = new Set();
+  for (const item of data.dailyLogs) {
+    if (typeof item.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(item.date) ||
+        localDateISO(new Date(`${item.date}T00:00:00`)) !== item.date || dates.has(item.date)) {
+      throw new Error("每日记录日期无效或重复，未修改现有数据。");
+    }
+    if (item.ruinCodes != null && (!Array.isArray(item.ruinCodes) || item.ruinCodes.some((code) => !CODE_ORDER.includes(code)))) {
+      throw new Error("每日记录的红灯码格式无效，未修改现有数据。");
+    }
+    for (const key of ["behavior", "result", "intent", "topAppName", "createdAt"]) {
+      if (item[key] != null && typeof item[key] !== "string") throw new Error(`每日记录 ${item.date} 的 ${key} 格式无效，未修改现有数据。`);
+    }
+    for (const key of ["bExecuted", "ruin"]) {
+      if (item[key] != null && item[key] !== 0 && item[key] !== 1) throw new Error(`每日记录 ${item.date} 的 ${key} 不是 0 或 1，未修改现有数据。`);
+    }
+    for (const key of ["sleepHours", "trainingMinutes", "deepWorkMinutes", "outputWords", "appUsageMinutes", "phoneUsageMinutes", "macUsageMinutes", "topAppMinutes", "steps", "activeCalories", "distanceKm"]) {
+      if (item[key] != null && (typeof item[key] !== "number" || !Number.isFinite(item[key]))) throw new Error(`每日记录 ${item.date} 的 ${key} 格式无效，未修改现有数据。`);
+    }
+    if (item.output != null) {
+      if (typeof item.output !== "object" || Array.isArray(item.output) ||
+          (item.output.text != null && typeof item.output.text !== "string") ||
+          (item.output.b != null && (!Array.isArray(item.output.b) || item.output.b.some((step) => typeof step !== "string")))) {
+        throw new Error(`每日记录 ${item.date} 的输出格式无效，未修改现有数据。`);
+      }
+    }
+    dates.add(item.date);
+  }
+  for (const [name, entries] of [["周复盘", data.weeklyReviews], ["Patch", data.systemPatches]]) {
+    for (const item of entries) {
+      for (const key of ["createdAt", "outputText", ...(name === "周复盘" ? ["weekRange"] : ["startDate"])]) {
+        if (item[key] != null && typeof item[key] !== "string") throw new Error(`${name}的 ${key} 格式无效，未修改现有数据。`);
+      }
+    }
+  }
+  if (data.appleSyncMeta != null && (typeof data.appleSyncMeta !== "object" || Array.isArray(data.appleSyncMeta))) {
+    throw new Error("Apple 同步数据格式无效，未修改现有数据。");
+  }
+  return { dailyLogs: data.dailyLogs.slice().sort((a, b) => b.date.localeCompare(a.date)), weeklyReviews: data.weeklyReviews, systemPatches: data.systemPatches, appleSyncMeta: data.appleSyncMeta || null };
+}
+
+function replaceBackupData(data) {
+  const replacements = new Map([
+    [STORAGE_KEY, JSON.stringify(data.dailyLogs)],
+    [WR_STORAGE_KEY, JSON.stringify(data.weeklyReviews)],
+    [PATCH_STORAGE_KEY, JSON.stringify(data.systemPatches)],
+    [APPLE_SYNC_META_KEY, data.appleSyncMeta ? JSON.stringify(data.appleSyncMeta) : null]
+  ]);
+  const original = new Map([...replacements.keys()].map((key) => [key, localStorage.getItem(key)]));
+  const written = [];
+  try {
+    for (const [key, value] of replacements) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+      written.push(key);
+    }
+  } catch (error) {
+    let rollbackFailed = false;
+    for (const key of written.reverse()) {
+      try {
+        const value = original.get(key);
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      } catch { rollbackFailed = true; }
+    }
+    throw new Error(rollbackFailed ? "存储失败且无法完全恢复原数据，请立即检查本地记录。" : "存储失败，已恢复原有数据。请检查浏览器存储空间。");
   }
 }
 
@@ -835,12 +1163,20 @@ async function maybeAutoSync(reason) {
 }
 
 async function syncNowInternal(settings, options = {}) {
+  // Serialize sync requests in this tab; a save during upload queues a fresh merge.
+  const run = syncQueue.catch(() => {}).then(() => performSync(settings, options));
+  syncQueue = run;
+  return run;
+}
+
+async function performSync(settings, options = {}) {
   const reason = options.reason || "同步";
   const showStatus = options.showStatus !== false;
 
   try {
-    const local = buildBackupPayload();
     const cloud = await fetchCloudPayload(settings);
+    // Read local data after the network request so edits made while fetching survive.
+    const local = buildBackupPayload();
     const merged = mergeLocalAndCloud(local, cloud);
     applyMergedPayload(merged);
     await pushCloudPayload(settings, merged);
@@ -860,6 +1196,7 @@ async function syncNowInternal(settings, options = {}) {
       renderSyncStatus(`${reason}失败：${String(error?.message || error)}`);
     } else {
       console.warn("auto sync failed", error);
+      renderSyncStatus(`${reason}失败：${String(error?.message || error)}\n本地记录仍可使用，请检查后手动重试。`);
     }
   }
 }
@@ -890,25 +1227,22 @@ async function createCloudGist(token, payload) {
 async function fetchCloudPayload(settings) {
   const gist = await githubFetchJson(`https://api.github.com/gists/${settings.gistId}`, settings.token);
   const files = gist?.files || {};
-  let file = files[SYNC_FILENAME];
+  const file = files[SYNC_FILENAME];
   if (!file) {
-    const first = Object.values(files)[0];
-    file = first || null;
-  }
-  if (!file) {
-    throw new Error("云仓中没有可用的同步文件。");
+    throw new Error(`云仓中没有 ${SYNC_FILENAME}，请检查 Gist ID。`);
   }
 
   let content = String(file.content || "");
   if (file.truncated && file.raw_url) {
     const rawRes = await fetch(file.raw_url, { headers: { Accept: "application/json,text/plain;q=0.9,*/*;q=0.8" } });
+    if (!rawRes.ok) throw new Error(`读取云端文件失败（${rawRes.status}）。`);
     content = await rawRes.text();
+  } else if (file.truncated) {
+    throw new Error("云端文件不完整且没有下载地址。");
   }
 
   const parsed = JSON.parse(content);
-  if (!parsed || typeof parsed !== "object") {
-    throw new Error("云端同步文件格式无效。");
-  }
+  validateBackup(parsed);
   return parsed;
 }
 
@@ -1039,18 +1373,8 @@ function pickNewestMeta(localMeta, cloudMeta) {
 }
 
 function applyMergedPayload(payload) {
-  const data = payload?.data || payload || {};
-  const dailyLogs = ensureArray(data.dailyLogs);
-  const weeklyReviews = ensureArray(data.weeklyReviews);
-  const systemPatches = ensureArray(data.systemPatches);
-
-  saveEntries(dailyLogs);
-  saveCollection(WR_STORAGE_KEY, weeklyReviews);
-  saveCollection(PATCH_STORAGE_KEY, systemPatches);
-
-  if (data.appleSyncMeta && typeof data.appleSyncMeta === "object") {
-    localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(data.appleSyncMeta));
-  }
+  const data = validateBackup(payload);
+  replaceBackupData(data);
 
   renderAll(loadEntries());
   renderWorkflowPanels();
@@ -1658,15 +1982,17 @@ function renderAppleSyncStatus(metaOverride) {
       Number(metrics.phoneUsageMinutes) >= 180 ||
       Number(metrics.topAppMinutes) >= 90
     ) &&
-    Number(metrics.deepWorkMinutes || 0) < 15 &&
-    Number(metrics.outputWords || 0) < 100
+    hasMetricValue(metrics.deepWorkMinutes) && hasMetricValue(metrics.outputWords) &&
+    Number(metrics.deepWorkMinutes) < 15 &&
+    Number(metrics.outputWords) < 100
   ) {
     rows.push("规则提示：今天更像注意力泄漏；留空时系统会优先给输入控制型 B。");
   }
   if (
-    Number(metrics.trainingMinutes || 0) < 10 &&
-    Number(metrics.steps || 0) < 5000 &&
-    Number(metrics.activeCalories || 0) < 220
+    [metrics.trainingMinutes, metrics.steps, metrics.activeCalories].every(hasMetricValue) &&
+    Number(metrics.trainingMinutes) < 10 &&
+    Number(metrics.steps) < 5000 &&
+    Number(metrics.activeCalories) < 220
   ) {
     rows.push("规则提示：身体启动偏弱；留空时系统可能优先给短训练型 B。");
   }
@@ -1773,7 +2099,7 @@ function getFormData() {
     date: String(fd.get("date") || "").trim(),
     behavior: String(fd.get("behavior") || "").trim(),
     result: String(fd.get("result") || "").trim(),
-    bExecuted: Number(fd.get("bExecuted") || 0),
+    bExecuted: fd.has("bExecuted") ? Number(fd.get("bExecuted")) : null,
     ruin: Number(fd.get("ruin") || 0),
     ruinCodes,
     intent: String(fd.get("intent") || "").trim(),
@@ -1827,15 +2153,17 @@ function deriveExecutionSignals(entry, entries = loadEntries()) {
   const activeCalories = toNumber(entry.activeCalories) || 0;
 
   const sleepRed = sleepHours !== null && sleepHours < 6.5;
+  const outputKnown = hasMetricValue(entry.deepWorkMinutes) && hasMetricValue(entry.outputWords);
+  const movementKnown = [entry.trainingMinutes, entry.steps, entry.activeCalories].every(hasMetricValue);
   const attentionLeak = (
     appUsageMinutes >= 240 ||
     phoneUsageMinutes >= 180 ||
     macUsageMinutes >= 240 ||
     topAppMinutes >= 90
-  ) && deepWorkMinutes < 15 && outputWords < 100;
+  ) && outputKnown && deepWorkMinutes < 15 && outputWords < 100;
 
-  const movementLow = trainingMinutes < 10 && steps < 5000 && activeCalories < 220;
-  const failureStreak = countLatestFailureStreak(merged);
+  const movementLow = movementKnown && trainingMinutes < 10 && steps < 5000 && activeCalories < 220;
+  const failureStreak = countLatestFailureStreak(merged, date);
   const effectiveRed = entry.ruin === 1 || sleepRed;
 
   let focus = "output";
@@ -1850,7 +2178,7 @@ function deriveExecutionSignals(entry, entries = loadEntries()) {
   } else if (attentionLeak) {
     focus = "input-control";
     reason = "今天更像注意力泄漏，不是没时间；先关干扰再推进。";
-  } else if (movementLow && deepWorkMinutes < 15 && outputWords < 100) {
+  } else if (movementLow && outputKnown && deepWorkMinutes < 15 && outputWords < 100) {
     focus = "training";
     reason = "身体启动信号偏弱，先用短训练把系统拉起来更稳。";
   } else if (previousEntry?.result || previousEntry?.behavior) {
@@ -1884,14 +2212,15 @@ function deriveExecutionSignals(entry, entries = loadEntries()) {
   };
 }
 
-function countLatestFailureStreak(entries) {
+function countLatestFailureStreak(entries, date) {
+  const byDate = new Map(entries.filter((item) => item?.date).map((item) => [item.date, item]));
   let streak = 0;
-  for (const item of entries) {
-    if (Number(item?.bExecuted) === 0) {
-      streak += 1;
-      continue;
-    }
-    break;
+  let cursor = date;
+  while (byDate.has(cursor)) {
+    const value = byDate.get(cursor).bExecuted;
+    if (value !== 0 && value !== "0") break;
+    streak += 1;
+    cursor = shiftDateISO(cursor, -1);
   }
   return streak;
 }
@@ -1957,9 +2286,9 @@ function getWrData() {
     codeS: toInt(fd.get("wrCodeS"), 0),
     codeT: toInt(fd.get("wrCodeT"), 0),
     codeP: toInt(fd.get("wrCodeP"), 0),
-    sleepPass: fd.get("wrSleepPass") ? 1 : 0,
-    trainingPass: fd.get("wrTrainingPass") ? 1 : 0,
-    outputPass: fd.get("wrOutputPass") ? 1 : 0
+    sleepPass: parseScoreState(fd.get("wrSleepPass")),
+    trainingPass: parseScoreState(fd.get("wrTrainingPass")),
+    outputPass: parseScoreState(fd.get("wrOutputPass"))
   };
 }
 
@@ -2253,9 +2582,9 @@ function buildWrOutput(data) {
       T: clamp(data.codeT, 0, 7),
       P: clamp(data.codeP, 0, 7)
     },
-    sleepPass: data.sleepPass ? 1 : 0,
-    trainingPass: data.trainingPass ? 1 : 0,
-    outputPass: data.outputPass ? 1 : 0
+    sleepPass: data.sleepPass,
+    trainingPass: data.trainingPass,
+    outputPass: data.outputPass
   };
 
   const mechanism = inferMechanism(score.dl, score.b, score.ruinDays, score.codeCount, score.outputPass);
@@ -2284,7 +2613,7 @@ function buildWrOutput(data) {
     "",
     "[Scoreboard-5 v1.3]",
     `DL完成 ${score.dl}/7 | B执行 ${score.b}/7 | 红灯天数 ${score.ruinDays}/7（主码：S${score.codeCount.S} T${score.codeCount.T} P${score.codeCount.P}）`,
-    `Sleep底线 ${score.sleepPass}/1 | Training ${score.trainingPass}/1 | Output ${score.outputPass}/1`,
+    `Sleep底线 ${formatScoreState(score.sleepPass)} | Training ${formatScoreState(score.trainingPass)} | Output ${formatScoreState(score.outputPass)}`,
     `机制一句话：本周主要被 ${mechanism} 驱动`,
     `下周唯一改动：只改 ${nextChange}`,
     "",
@@ -2446,8 +2775,10 @@ function toggleRuinCodes() {
   });
 }
 
-function renderAll(entries, outputObj) {
-  const output = outputObj || entries[0]?.output;
+function renderAll(entries, outputObj, outputDate) {
+  const output = outputObj === undefined ? entries[0]?.output : outputObj;
+  const shownDate = outputDate || (outputObj === undefined ? entries[0]?.date : "");
+  document.getElementById("outputDate").textContent = shownDate ? (output?.text ? `依据 ${shownDate} 的记录生成` : `${shownDate} 的记录暂无已保存输出`) : "";
   renderExecutionFocus(output);
   renderWoopLite(output);
 
@@ -2462,11 +2793,37 @@ function renderAll(entries, outputObj) {
   }
 
   el.scoreboard.textContent = buildScoreboard(entries);
+  renderPatchReminder(entries);
   renderHistory(entries);
+  renderDailyRecordAvailability();
   renderQuickFillCard();
   renderIntentAssist();
   renderEngineSignal();
   renderSleepRuinAssist();
+}
+
+function renderPatchReminder(entries) {
+  const reminder = document.getElementById("patchReminder");
+  const message = document.getElementById("patchReminderText");
+  if (!reminder || !message) return;
+  const today = localDateISO(new Date());
+  const byDate = new Map(entries.filter((entry) => /^\d{4}-\d{2}-\d{2}$/.test(entry.date || "") && entry.date <= today)
+    .map((entry) => [entry.date, entry]));
+  const dates = [...byDate.keys()].sort().reverse();
+  const reasons = [];
+  if (dates.length && dates[0] < shiftDateISO(today, -1)) {
+    reasons.push(`最近一次记录是 ${dates[0]}，昨天和今天都没有记录`);
+  }
+  // Only consecutive dated records count; missing days are not failures.
+  const latest = dates[0];
+  if (latest && latest >= shiftDateISO(today, -1) && [0, 1, 2].every((offset) => {
+    const entry = byDate.get(shiftDateISO(latest, -offset));
+    return entry && Number(entry.bExecuted) === 0 && entry.bExecuted !== null && entry.bExecuted !== "";
+  })) reasons.push("最近连续 3 条每日记录的 B 均未执行");
+  const redDays = getRecentEntries([...byDate.values()], 7).filter((entry) => Number(entry.ruin) === 1).length;
+  if (redDays >= 2) reasons.push(`近 7 天有 ${redDays} 天标记红灯`);
+  reminder.classList.toggle("hidden", reasons.length === 0);
+  message.textContent = reasons.length ? `${reasons.join("；")}。可以花 5–10 分钟只调整一处；这是提示，不是诊断。` : "";
 }
 
 function renderExecutionFocus(output) {
@@ -2490,11 +2847,17 @@ function renderWorkflowPanels() {
   if (wrEntries[0]?.outputText) {
     latestWrOutputText = wrEntries[0].outputText;
     setModuleOutput(el.wrOutput, latestWrOutputText, "提交 WR-10 后显示周总结与下周执行稿");
+  } else {
+    latestWrOutputText = "";
+    setModuleOutput(el.wrOutput, "", "提交 WR-10 后显示周总结与下周执行稿");
   }
 
   if (patchEntries[0]?.outputText) {
     latestPatchOutputText = patchEntries[0].outputText;
     setModuleOutput(el.patchOutput, latestPatchOutputText, "提交 System Patch 后显示新规则（<=3条）");
+  } else {
+    latestPatchOutputText = "";
+    setModuleOutput(el.patchOutput, "", "提交 System Patch 后显示新规则（<=3条）");
   }
 }
 
@@ -2530,12 +2893,20 @@ function renderYesterdayBContext() {
   el.yesterdayBText.textContent = lines.join("\n");
 }
 
+function parseScoreState(value) {
+  return value === "1" ? 1 : value === "0" ? 0 : null;
+}
+
+function formatScoreState(value) {
+  return value === 1 ? "达成" : value === 0 ? "未达成" : "数据不足";
+}
+
 function buildScoreboard(entries) {
   const snap = getScoreSnapshot(entries);
 
   return [
     `DL完成 ${snap.dl}/7 | B执行 ${snap.b}/7 | 红灯天数 ${snap.ruinDays}/7（主码：S${snap.codeCount.S} T${snap.codeCount.T} P${snap.codeCount.P}）`,
-    `Sleep底线 ${snap.sleepPass}/1 | Training ${snap.trainingPass}/1 | Output ${snap.outputPass}/1`,
+    `Sleep底线 ${formatScoreState(snap.sleepPass)} | Training ${formatScoreState(snap.trainingPass)} | Output ${formatScoreState(snap.outputPass)}`,
     `机制一句话：本周主要被 ${snap.mechanism} 驱动`,
     `下周唯一改动：只改 ${snap.nextChange}`
   ].join("\n");
@@ -2545,6 +2916,8 @@ function getScoreSnapshot(entries) {
   const recent = getRecentEntries(entries, 7);
   const dl = recent.length;
   const b = recent.filter((item) => item.bExecuted === 1).length;
+  const bFailed = recent.filter((item) => item.bExecuted === 0).length;
+  const bObserved = b + bFailed;
   const ruinDays = recent.filter((item) => item.ruin === 1).length;
 
   const codeCount = { S: 0, T: 0, P: 0 };
@@ -2556,23 +2929,28 @@ function getScoreSnapshot(entries) {
     }
   }
 
-  const sleepGoodDays = recent.filter((item) => Number(item.sleepHours) >= 7).length;
-  const sleepPass = sleepGoodDays >= 5 ? 1 : 0;
+  const sleepGoodDays = recent.filter((item) => hasMetricValue(item.sleepHours) && Number(item.sleepHours) >= 7).length;
+  const sleepComplete = recent.length === 7 && recent.every((item) => hasMetricValue(item.sleepHours));
+  const sleepPass = sleepGoodDays >= 5 ? 1 : sleepComplete ? 0 : null;
 
   const trainingTotal = sumBy(recent, "trainingMinutes");
-  const trainingPass = trainingTotal >= 150 ? 1 : 0;
+  const trainingComplete = recent.length === 7 && recent.every((item) => hasMetricValue(item.trainingMinutes));
+  const trainingPass = trainingTotal >= 150 ? 1 : trainingComplete ? 0 : null;
 
   const deepWorkTotal = sumBy(recent, "deepWorkMinutes");
   const outputWordTotal = sumBy(recent, "outputWords");
-  const outputPass = deepWorkTotal >= 300 || outputWordTotal >= 800 ? 1 : 0;
+  const outputComplete = recent.length === 7 && recent.every((item) => hasMetricValue(item.deepWorkMinutes) && hasMetricValue(item.outputWords));
+  const outputPass = deepWorkTotal >= 300 || outputWordTotal >= 800 ? 1 : outputComplete ? 0 : null;
 
-  const mechanism = inferMechanism(dl, b, ruinDays, codeCount, outputPass);
-  const nextChange = inferNextChange(dl, b, codeCount);
+  const mechanism = inferMechanism(bObserved, b, ruinDays, codeCount, outputPass);
+  const nextChange = inferNextChange(bObserved, b, codeCount);
 
   return {
     hasData: dl > 0,
     dl,
     b,
+    bFailed,
+    bObserved,
     ruinDays,
     codeCount,
     sleepPass,
@@ -2593,6 +2971,8 @@ function inferMechanism(dl, b, ruinDays, codeCount, outputPass) {
     }
     return "关键任务掉线";
   }
+
+  if (dl === 0) return "数据不足";
 
   if (dl > 0 && b / dl < 0.7) {
     return "执行摩擦";
@@ -2615,6 +2995,7 @@ function inferNextChange(dl, b, codeCount) {
   if (codeCount.P > 0) {
     return "关键任务固定拆成 5 分钟启动动作";
   }
+  if (dl === 0) return "先记录一天，再观察趋势";
   if (dl > 0 && b < dl) {
     return "洗漱后立刻执行 B 的第一步";
   }
@@ -2622,13 +3003,20 @@ function inferNextChange(dl, b, codeCount) {
 }
 
 function renderHistory(entries) {
+  const count = document.getElementById("historyCount");
+  const more = document.getElementById("historyMore");
+  const less = document.getElementById("historyLess");
+  const sorted = entries.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  more.classList.toggle("hidden", sorted.length <= historyLimit);
+  less.classList.toggle("hidden", historyLimit <= 12 || sorted.length <= 12);
+  count.textContent = sorted.length ? `显示 ${Math.min(historyLimit, sorted.length)} / ${sorted.length} 条` : "";
   if (entries.length === 0) {
     el.history.textContent = "暂无记录";
     return;
   }
 
   const frag = document.createDocumentFragment();
-  const list = entries.slice(0, 12);
+  const list = sorted.slice(0, historyLimit);
 
   for (const item of list) {
     const node = el.historyItemTpl.content.firstElementChild.cloneNode(true);
@@ -2636,6 +3024,9 @@ function renderHistory(entries) {
 
     node.querySelector(".history-meta").textContent = `${item.date} | B=${item.bExecuted} | RUIN=${item.ruin} | 码=${ruinCodes}`;
     node.querySelector(".history-text").textContent = `行为：${item.behavior} | 结果：${item.result}`;
+    const button = node.querySelector(".history-load");
+    button.setAttribute("aria-label", `载入并编辑 ${item.date} 的记录`);
+    button.addEventListener("click", () => loadDailyRecord(item.date, true));
     frag.appendChild(node);
   }
 
@@ -2832,7 +3223,7 @@ function buildBackupPayload() {
     policy: {
       storage: "localStorage",
       autoUpload: false,
-      note: "数据默认仅保存在当前浏览器，不自动上传服务器。"
+      note: "数据默认保存在当前浏览器；启用 Gist 同步后按设置上传。"
     },
     data: {
       dailyLogs: loadEntries(),

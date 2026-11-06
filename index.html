@@ -14,8 +14,9 @@
       <h1>LifeOS v1.3 Daily Engine</h1>
       <p class="subtitle">单入口：只填 DL-30，自动生成 A/B/C/D。你只执行 B。</p>
       <p class="data-policy">
-        数据策略：默认仅保存在当前浏览器（localStorage），不会自动上传服务器。可在“数据与迁移”里导出/导入。
+        数据默认保存在当前浏览器。可导出备份；配置并启用 GitHub Gist 同步后，记录会按同步设置上传。
       </p>
+      <p id="offlineStatus" class="data-policy" role="status">正在检查离线功能…</p>
     </header>
 
     <section class="card help-card">
@@ -106,11 +107,19 @@ RUIN：0
           <strong>Quick Mode：今天只判断 3 件事</strong>
           <p class="hint-copy">1）昨天的 B 做没做 2）今天有没有红灯 3）结果一句话。其他都交给系统。</p>
         </div>
+        <div id="pendingBridge" class="hint-card hidden" role="status">
+          <strong>有一份待处理的设备数据</strong>
+          <p class="hint-copy">当前有未提交草稿，设备数据暂未填入，仍保留在当前链接中。请先保存草稿，再点击下方按钮；也可以选择放弃草稿后继续。</p>
+          <button id="applyPendingBridge" type="button">继续处理设备数据</button>
+        </div>
         <form id="dlForm" autocomplete="off">
+          <p id="draftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
           <label>
             日期
             <input id="date" name="date" type="date" required>
           </label>
+          <div class="actions"><button id="loadDailyRecord" type="button" disabled>载入所选日期的记录</button></div>
+          <p id="loadDailyHint" class="module-note">所选日期暂无保存的记录。</p>
 
           <label>
             行为（动词+对象+时长/次数）
@@ -125,7 +134,7 @@ RUIN：0
           <fieldset>
             <legend>昨日B执行</legend>
             <label class="inline">
-              <input type="radio" name="bExecuted" value="1" checked>
+              <input type="radio" name="bExecuted" value="1" required>
               1（已执行）
             </label>
             <label class="inline">
@@ -296,10 +305,11 @@ RUIN：0
         </form>
       </article>
 
-      <article class="card output-card">
-        <h2>LifeOS 输出（验收标准）</h2>
+      <article class="card output-card" id="outputCard" tabindex="-1" aria-labelledby="outputTitle">
+        <h2 id="outputTitle">明日行动与复盘</h2>
+        <p id="outputDate" class="module-note"></p>
         <div class="execution-lock">
-          <p class="exec-label">今日执行焦点（只做B）</p>
+          <p class="exec-label">明日执行焦点（只做 B）</p>
           <pre id="bFocus" class="exec-focus">提交 DL-30 后，这里会锁定显示你明天唯一要做的 B。</pre>
         </div>
         <div id="output" class="output empty">提交 DL-30 后显示 A/B/C/D</div>
@@ -324,16 +334,27 @@ RUIN：0
       <article class="card">
         <h2>最近记录</h2>
         <div id="history" class="history">暂无记录</div>
+        <p id="historyCount" class="module-note" aria-live="polite"></p>
+        <div class="actions">
+          <button id="historyMore" type="button" class="hidden">显示更多记录</button>
+          <button id="historyLess" type="button" class="hidden">收起较早记录</button>
+        </div>
       </article>
     </section>
 
     <section class="card flow-card">
       <h2>完整流程工作台（周 / 双周 / 月 / 训练）</h2>
       <p class="flow-intro">日常只跑 DL-30；下面 4 个模块按节奏触发，默认折叠，不占空间。</p>
+      <div id="patchReminder" class="hint-card hidden" role="status">
+        <strong>可以做一次 System Patch</strong>
+        <p id="patchReminderText" class="hint-copy"></p>
+        <button id="openPatch" type="button">打开 System Patch</button>
+      </div>
 
       <details class="flow-block">
-        <summary>WR-10（每周 10 分钟）</summary>
+        <summary>WR-10（每周 10 分钟）<span id="wrDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="wrForm" class="mini-form" autocomplete="off">
+          <p id="wrDraftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
           <label>
             周期
             <input id="wrWeekRange" name="wrWeekRange" type="text" placeholder="Week of 2026-03-09 ~ 2026-03-15" required>
@@ -357,6 +378,9 @@ RUIN：0
 
           <div class="micro-card">
             <strong>下周唯一实验（7天，≤15分钟/天）</strong>
+            <p class="module-note">可根据近 7 天记录生成一份草案，再按自己的情况修改。</p>
+            <div class="actions"><button id="suggestExperiment" type="button">生成实验草案</button></div>
+            <p id="experimentHint" class="module-note" role="status"></p>
             <div class="mini-grid">
               <label>
                 实验名
@@ -410,10 +434,10 @@ RUIN：0
                 <input id="wrCodeP" name="wrCodeP" type="number" min="0" max="7" value="0" required>
               </label>
             </div>
-            <div class="inline-checks">
-              <label class="inline"><input id="wrSleepPass" name="wrSleepPass" type="checkbox"> Sleep底线达成</label>
-              <label class="inline"><input id="wrTrainingPass" name="wrTrainingPass" type="checkbox"> Training达成</label>
-              <label class="inline"><input id="wrOutputPass" name="wrOutputPass" type="checkbox"> Output达成</label>
+            <div class="mini-grid compact">
+              <label>Sleep底线<select id="wrSleepPass" name="wrSleepPass"><option value="">数据不足</option><option value="1">达成</option><option value="0">未达成</option></select></label>
+              <label>Training<select id="wrTrainingPass" name="wrTrainingPass"><option value="">数据不足</option><option value="1">达成</option><option value="0">未达成</option></select></label>
+              <label>Output<select id="wrOutputPass" name="wrOutputPass"><option value="">数据不足</option><option value="1">达成</option><option value="0">未达成</option></select></label>
             </div>
           </div>
 
@@ -426,9 +450,10 @@ RUIN：0
         <pre id="wrOutput" class="module-output empty">提交 WR-10 后显示周总结与下周执行稿</pre>
       </details>
 
-      <details class="flow-block">
-        <summary>System Patch（每两周 5-10 分钟，只改一处）</summary>
+      <details class="flow-block" id="patchDetails">
+        <summary>System Patch（每两周 5-10 分钟，只改一处）<span id="patchDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="patchForm" class="mini-form" autocomplete="off">
+          <p id="patchDraftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
           <label>
             系统最卡点（1条）
             <input id="patchBottleneck" name="patchBottleneck" type="text" placeholder="例：总在晚间才想起写 DL" required>
@@ -498,7 +523,7 @@ RUIN：0
       <details class="flow-block">
         <summary>数据与迁移（导出 / 导入）</summary>
         <div class="mini-form">
-          <p class="module-note">用于跨设备备份与恢复。建议每周导出一次 JSON。</p>
+          <p class="module-note">用于跨设备备份与恢复。导入会覆盖本地记录，建议先导出当前 JSON。备份不包含未提交草稿或云同步令牌。</p>
           <div class="actions">
             <button id="exportJson" type="button">导出 JSON（完整备份）</button>
             <button id="exportCsv" type="button">导出 CSV（表格）</button>
@@ -543,6 +568,7 @@ RUIN：0
     <article class="history-item">
       <div class="history-meta"></div>
       <div class="history-text"></div>
+      <button type="button" class="history-load">载入并编辑</button>
     </article>
   </template>
 
