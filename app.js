@@ -1,4 +1,4 @@
-// lifeos-shell-v24
+// lifeos-shell-v25
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -245,6 +245,34 @@ async function initOfflineSupport() {
     showUpdate();
     await navigator.serviceWorker.ready;
     status.textContent = "离线页面已准备好；云同步仍需联网。";
+    const checkButton = document.getElementById("checkUpdate");
+    checkButton.classList.remove("hidden");
+    checkButton.addEventListener("click", async () => {
+      checkButton.disabled = true;
+      status.textContent = "正在检查更新…";
+      try {
+        await registration.update();
+        const worker = registration.installing;
+        if (worker && !["installed", "activated", "redundant"].includes(worker.state)) {
+          await new Promise((resolve) => {
+            const finish = () => { clearTimeout(timer); worker.removeEventListener("statechange", changed); resolve(); };
+            const changed = () => { if (["installed", "activated", "redundant"].includes(worker.state)) finish(); };
+            const timer = setTimeout(finish, 20000);
+            worker.addEventListener("statechange", changed);
+            changed();
+          });
+        }
+        showUpdate();
+        if (registration.waiting && navigator.serviceWorker.controller) status.textContent = "新版本已准备好，保存内容后可更新。";
+        else if (worker?.state === "redundant") status.textContent = "未能准备更新，请稍后联网重试。";
+        else if (registration.installing) status.textContent = "更新仍在准备，请稍后再检查。";
+        else status.textContent = "目前没有检测到可用更新。";
+      } catch {
+        status.textContent = "检查更新失败，请确认网络后重试；本地记录不受影响。";
+      } finally {
+        checkButton.disabled = false;
+      }
+    });
   } catch (error) {
     status.textContent = "离线页面准备失败，请联网重试；记录仍保存在当前浏览器。";
     console.warn("Offline setup failed", error);
