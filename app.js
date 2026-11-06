@@ -1,4 +1,4 @@
-// lifeos-shell-v68
+// lifeos-shell-v69
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -61,6 +61,7 @@ let latestDojoOutputText = "";
 let latestDojoStarterText = "";
 let syncQueue = Promise.resolve();
 let historyLimit = 12;
+let backupPreviewRequest = 0;
 let dailyDraftSnapshot = null;
 let dailyDraftSaveFailed = false;
 const workflowDraftSnapshots = new Map([[WR_DRAFT_KEY, null], [PATCH_DRAFT_KEY, null]]);
@@ -769,6 +770,8 @@ function bindEvents() {
   if (el.importData) {
     el.importData.addEventListener("click", onImportData);
   }
+  el.importFile?.addEventListener("change", renderBackupPreview);
+  document.getElementById("restoreBackupDrafts")?.addEventListener("change", renderBackupPreview);
 
   if (el.syncSave) {
     el.syncSave.addEventListener("click", onSyncSaveSettings);
@@ -1462,6 +1465,30 @@ function onExportMarkdown() {
 
   downloadFile(filename, markdown, "text/markdown;charset=utf-8");
   setModuleOutput(el.dataOutput, `已导出 Markdown：${filename}`, "导出/导入结果会显示在这里");
+}
+
+async function renderBackupPreview() {
+  const request = ++backupPreviewRequest;
+  const preview = document.getElementById("backupPreview");
+  const file = el.importFile?.files?.[0];
+  if (!file) {
+    preview.textContent = "选择备份后可在此预览，尚不会导入。";
+    return;
+  }
+  preview.textContent = "正在检查备份…";
+  try {
+    const parsed = JSON.parse(await file.text());
+    const data = validateBackup(parsed);
+    const restoreDrafts = document.getElementById("restoreBackupDrafts").checked;
+    const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
+    if (request !== backupPreviewRequest) return;
+    const draftInfo = restoreDrafts ? (drafts ? "将恢复备份草稿，空草稿会清除本机对应草稿。" : "备份没有草稿，本机草稿会保留。") : "本机草稿会保留。";
+    preview.textContent = `备份预览：${file.name}；每日 ${data.dailyLogs.length} 条，周复盘 ${data.weeklyReviews.length} 条，Patch ${data.systemPatches.length} 条；Apple 同步数据${data.appleSyncMeta ? "有" : "无"}。${draftInfo}尚未导入。`;
+  } catch (error) {
+    if (request !== backupPreviewRequest) return;
+    const reason = error instanceof SyntaxError ? "文件不是有效的 JSON。" : String(error?.message || error);
+    preview.textContent = `无法预览备份：${reason} 尚未修改本机数据。`;
+  }
 }
 
 async function onImportData() {

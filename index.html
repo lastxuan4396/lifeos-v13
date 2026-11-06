@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v68 -->
+<!-- lifeos-shell-v69 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v68.css">
+  <link rel="stylesheet" href="./styles-v69.css">
 </head>
 <body>
   <main class="page">
@@ -634,6 +634,7 @@ RUIN：0
             <input id="importFile" type="file" accept=".json,application/json">
           </label>
           <label class="inline"><input id="restoreBackupDrafts" type="checkbox"> 同时恢复备份里的草稿（会替换本机草稿）</label>
+          <p id="backupPreview" class="module-note" role="status">选择备份后可在此预览，尚不会导入。</p>
           <div class="actions">
             <button id="importData" type="button" class="primary">导入并覆盖本地数据</button>
           </div>
@@ -684,6 +685,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v68.js" defer></script>
+  <script src="./app-v69.js" defer></script>
 </body>
 </html>
