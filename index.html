@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v20 -->
+<!-- lifeos-shell-v21 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -380,6 +380,8 @@ RUIN：0
             周期
             <input id="wrWeekRange" name="wrWeekRange" type="text" placeholder="Week of 2026-03-09 ~ 2026-03-15" required>
           </label>
+          <div class="actions"><button id="loadWeeklyRecord" type="button" disabled>载入此周期的周复盘</button></div>
+          <p id="loadWeeklyHint" class="module-note"></p>
           <label>
             本周最有效动作（1条）
             <input id="wrBestAction" name="wrBestAction" type="text" placeholder="例：每天晨间 15 分钟写作" required>

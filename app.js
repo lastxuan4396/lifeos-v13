@@ -1,4 +1,4 @@
-// lifeos-shell-v20
+// lifeos-shell-v21
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -493,6 +493,8 @@ function bindEvents() {
     el.wrForm.addEventListener("submit", onWrSubmit);
     ["input", "change"].forEach((eventName) => el.wrForm.addEventListener(eventName, () => saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge")));
   }
+  el.wrWeekRange?.addEventListener("input", renderWeeklyAvailability);
+  document.getElementById("loadWeeklyRecord")?.addEventListener("click", loadWeeklyRecord);
 
   if (el.wrAutofill) {
     el.wrAutofill.addEventListener("click", onWrAutofill);
@@ -849,7 +851,34 @@ function onWrSubmit(event) {
   latestWrOutputText = outputText;
   setModuleOutput(el.wrOutput, outputText, "提交 WR-10 后显示周总结与下周执行稿");
   clearWorkflowDraft(WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  renderWeeklyAvailability();
   void maybeAutoSync("WR-10");
+}
+
+function renderWeeklyAvailability() {
+  const record = loadCollection(WR_STORAGE_KEY).find((item) => item.weekRange === el.wrWeekRange.value.trim());
+  document.getElementById("loadWeeklyRecord").disabled = !record;
+  document.getElementById("loadWeeklyHint").textContent = record ? "此周期已有周复盘，可以载入后修改。" : "此周期暂无已保存的周复盘。";
+}
+
+function loadWeeklyRecord() {
+  const record = loadCollection(WR_STORAGE_KEY).find((item) => item.weekRange === el.wrWeekRange.value.trim());
+  if (!record) { renderWeeklyAvailability(); return; }
+  try {
+    if (localStorage.getItem(WR_DRAFT_KEY) !== null && !confirm("载入记录会替换当前未提交的周复盘草稿。是否继续？")) return;
+  } catch {
+    document.getElementById("wrDraftStatus").textContent = "无法读取草稿，暂未载入记录。";
+    return;
+  }
+  for (const field of el.wrForm.elements) {
+    if (!field.name?.startsWith("wr") || field.name === "wrWeekRange") continue;
+    const suffix = field.name.slice(2);
+    const key = suffix.charAt(0).toLowerCase() + suffix.slice(1);
+    field.value = record[key] ?? "";
+  }
+  latestWrOutputText = typeof record.outputText === "string" ? record.outputText : "";
+  setModuleOutput(el.wrOutput, latestWrOutputText, "此周期尚无保存的周复盘结果。");
+  saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
 }
 
 function onWrAutofill() {
@@ -2941,6 +2970,7 @@ function renderExecutionFocus(output) {
 function renderWorkflowPanels() {
   const wrEntries = loadCollection(WR_STORAGE_KEY);
   const patchEntries = loadCollection(PATCH_STORAGE_KEY);
+  renderWeeklyAvailability();
 
   if (wrEntries[0]?.outputText) {
     latestWrOutputText = wrEntries[0].outputText;
