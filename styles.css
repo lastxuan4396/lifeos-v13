@@ -43,7 +43,8 @@ body.quick-mode .help-card {
   padding: 12px 14px;
 }
 
-#todayAction {
+#todayAction,
+#syncNotice {
   margin-bottom: 16px;
 }
 

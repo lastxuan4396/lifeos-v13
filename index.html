@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v23 -->
+<!-- lifeos-shell-v24 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -23,6 +23,15 @@
         <button id="applyUpdate" type="button">更新并重新打开</button>
       </div>
     </header>
+
+    <section id="syncNotice" class="card hidden" aria-labelledby="syncNoticeTitle" role="status">
+      <strong id="syncNoticeTitle">上次同步未完成</strong>
+      <p id="syncNoticeText" class="hint-copy">本地记录仍可使用，请联网后重试同步。</p>
+      <div class="actions">
+        <button id="retrySync" type="button">重试同步</button>
+        <button id="openSyncSettings" type="button">查看同步设置</button>
+      </div>
+    </section>
 
     <section id="todayAction" class="card hidden" aria-labelledby="todayActionTitle">
       <h2 id="todayActionTitle">今天要做的 B</h2>
@@ -550,7 +559,7 @@ RUIN：0
         <pre id="dojoOutput" class="module-output empty">提交场景后显示 Dojo 5轮脚本 + 评分规则</pre>
       </details>
 
-      <details class="flow-block">
+      <details class="flow-block" id="dataSettings">
         <summary>数据与迁移（导出 / 导入）</summary>
         <div class="mini-form">
           <p class="module-note">用于跨设备备份与恢复。导入会覆盖本地记录，建议先导出当前 JSON。备份不包含未提交草稿或云同步令牌。</p>

@@ -1,9 +1,10 @@
-// lifeos-shell-v23
+// lifeos-shell-v24
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
 const APPLE_SYNC_META_KEY = "lifeos_v13_apple_sync_meta";
 const SYNC_SETTINGS_KEY = "lifeos_v13_sync_settings";
+const SYNC_FAILURE_KEY = "lifeos_v13_sync_failed";
 const UI_MODE_KEY = "lifeos_v13_ui_mode";
 const DRAFT_KEY = "lifeos_v13_dl_draft";
 const WR_DRAFT_KEY = "lifeos_v13_wr_draft";
@@ -211,6 +212,7 @@ function init() {
   renderSleepRuinAssist();
   renderAppleSyncStatus();
   renderSyncStatus();
+  try { if (localStorage.getItem(SYNC_FAILURE_KEY) === "1") showSyncNotice(true); } catch { /* storage may be unavailable */ }
   initOfflineSupport();
 }
 
@@ -279,6 +281,23 @@ function setUIMode(mode) {
 }
 
 function bindEvents() {
+  document.getElementById("openSyncSettings")?.addEventListener("click", () => {
+    const details = document.getElementById("dataSettings");
+    details.open = true;
+    details.scrollIntoView({ block: "start", behavior: "auto" });
+  });
+  document.getElementById("retrySync")?.addEventListener("click", async (event) => {
+    const settings = loadSyncSettings();
+    if (!settings.token || !settings.gistId) {
+      document.getElementById("syncNoticeText").textContent = "请先在同步设置中填写 Token 和 Gist ID。";
+      return;
+    }
+    const button = event.currentTarget;
+    button.disabled = true;
+    document.getElementById("syncNoticeText").textContent = "正在重试同步，本地记录仍可使用。";
+    try { await syncNowInternal(settings, { reason: "重试同步", showStatus: true }); }
+    finally { button.disabled = false; }
+  });
   document.getElementById("selectCopyFallback")?.addEventListener("click", () => {
     const field = document.getElementById("copyFallbackText");
     field.focus();
@@ -1288,6 +1307,16 @@ async function syncNowInternal(settings, options = {}) {
   return run;
 }
 
+function showSyncNotice(failed) {
+  const notice = document.getElementById("syncNotice");
+  notice.classList.toggle("hidden", !failed);
+  if (failed) document.getElementById("syncNoticeText").textContent = "本地记录仍可使用，请联网后重试同步。";
+  try {
+    if (failed) localStorage.setItem(SYNC_FAILURE_KEY, "1");
+    else localStorage.removeItem(SYNC_FAILURE_KEY);
+  } catch { /* the visible notice still works for this session */ }
+}
+
 async function performSync(settings, options = {}) {
   const reason = options.reason || "同步";
   const showStatus = options.showStatus !== false;
@@ -1299,6 +1328,7 @@ async function performSync(settings, options = {}) {
     const merged = mergeLocalAndCloud(local, cloud);
     applyMergedPayload(merged);
     await pushCloudPayload(settings, merged);
+    showSyncNotice(false);
 
     if (showStatus) {
       const data = merged.data || {};
@@ -1311,6 +1341,7 @@ async function performSync(settings, options = {}) {
       renderSyncStatus(lines.join("\n"));
     }
   } catch (error) {
+    showSyncNotice(true);
     if (showStatus) {
       renderSyncStatus(`${reason}失败：${String(error?.message || error)}`);
     } else {
