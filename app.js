@@ -1,4 +1,4 @@
-// lifeos-shell-v35
+// lifeos-shell-v36
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -332,6 +332,7 @@ function bindEvents() {
     field.select();
   });
   document.getElementById("closeCopyFallback")?.addEventListener("click", () => document.getElementById("copyFallback").close());
+  document.getElementById("mergePendingBridge")?.addEventListener("click", mergePendingBridgeIntoDraft);
   document.getElementById("applyPendingBridge")?.addEventListener("click", () => {
     try {
       if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
@@ -2005,6 +2006,63 @@ function shouldUseRecoveryLanguage(entry) {
   }
   const sleepHours = toNumber(entry.sleepHours);
   return sleepHours !== null && sleepHours < 6.5;
+}
+
+function mergePendingBridgeIntoDraft() {
+  const params = new URLSearchParams(window.location.search);
+  const date = getFirstDateParam(params, ["date", "logDate"]);
+  const status = document.getElementById("pendingBridgeStatus");
+  const parsedDate = new Date(`${date}T00:00:00`);
+  if (!date || !Number.isFinite(parsedDate.getTime()) || localDateISO(parsedDate) !== date || date !== el.date.value) {
+    status.textContent = "设备数据日期与草稿不同或无法确认。请先保存草稿，再继续处理设备数据。";
+    return;
+  }
+  const fields = [
+    [el.sleepHours, ["sleepHours", "sleep", "sleep_h"]],
+    [el.trainingMinutes, ["trainingMinutes", "exerciseMinutes", "workoutMinutes"]],
+    [el.deepWorkMinutes, ["deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes"]],
+    [el.outputWords, ["outputWords", "words", "writingWords"]],
+    [el.appUsageMinutes, ["appUsageMinutes", "softwareUsageMinutes", "usageMinutes", "screenMinutes"]],
+    [el.phoneUsageMinutes, ["phoneUsageMinutes", "mobileUsageMinutes", "iosUsageMinutes"]],
+    [el.macUsageMinutes, ["macUsageMinutes", "desktopUsageMinutes"]],
+    [el.steps, ["steps", "stepCount"]],
+    [el.activeCalories, ["activeCalories", "calories", "moveCalories"]],
+    [el.distanceKm, ["distanceKm", "workoutDistanceKm", "distance"]]
+  ];
+  let filled = 0;
+  let kept = 0;
+  for (const [input, keys] of fields) {
+    const value = getFirstNumericParam(params, keys);
+    if (value === null || value < 0 || !input) continue;
+    if (input.value !== "") kept += 1;
+    else if (setNumericInputValue(input, value)) filled += 1;
+  }
+  const topApp = String(params.get("topAppName") || params.get("topApp") || "").trim();
+  const topMinutes = getFirstNumericParam(params, ["topAppMinutes", "topAppUsageMinutes"]);
+  const sameApp = !el.topAppName.value || (topApp && topApp === el.topAppName.value);
+  if (topApp && el.topAppName) {
+    if (el.topAppName.value !== "") kept += 1;
+    else if (!el.topAppMinutes.value) { el.topAppName.value = topApp; filled += 1; }
+    else kept += 1;
+  }
+  if (topMinutes !== null && topMinutes >= 0 && el.topAppMinutes) {
+    if (el.topAppMinutes.value !== "" || !sameApp || (!topApp && el.topAppName.value)) kept += 1;
+    else { el.topAppMinutes.value = String(topMinutes); filled += 1; }
+  }
+  if (!filled && !kept) {
+    status.textContent = "链接中没有可合并的有效设备数据，原草稿未改变。";
+    return;
+  }
+  renderSleepRuinAssist();
+  renderIntentAssist();
+  renderEngineSignal();
+  if (!saveDailyDraft()) {
+    status.textContent = "合并后的草稿保存失败，请保留此页面并检查浏览器存储；设备链接仍在。";
+    return;
+  }
+  if (window.history?.replaceState) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
+  document.getElementById("pendingBridge").classList.add("hidden");
+  document.getElementById("draftStatus").textContent = `设备数据已合并：填入 ${filled} 项，保留已填 ${kept} 项。请核对后保存记录。`;
 }
 
 function applyAppleAutofillFromUrl() {
