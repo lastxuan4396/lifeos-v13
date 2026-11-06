@@ -1,4 +1,4 @@
-// lifeos-shell-v52
+// lifeos-shell-v53
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -430,7 +430,8 @@ function bindEvents() {
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
   });
-  document.getElementById("useTodayAction")?.addEventListener("click", useTodayAction);
+  document.getElementById("useTodayAction")?.addEventListener("click", () => useTodayAction(false));
+  document.getElementById("markTodayActionDone")?.addEventListener("click", () => useTodayAction(true));
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       renderTodayAction(loadEntries());
@@ -3467,7 +3468,7 @@ function renderTodayAction(entries) {
   document.getElementById("todayActionSteps").textContent = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
 }
 
-function useTodayAction() {
+function useTodayAction(markDone = false) {
   const today = localDateISO(new Date());
   const hint = document.getElementById("todayActionHint");
   if (el.date.value !== today) {
@@ -3483,11 +3484,17 @@ function useTodayAction() {
     hint.textContent = "没有找到昨天生成的行动，请刷新后重试。";
     return;
   }
-  if (el.behavior.value.trim() && !confirm("行为栏已有内容，是否用今天的行动替换？")) return;
-  el.behavior.value = `执行今日B：${step}`;
+  const behavior = `执行今日B：${step}`;
+  if (el.behavior.value.trim() && el.behavior.value.trim() !== behavior && !confirm("行为栏已有内容，是否用今天的行动替换？")) return;
+  el.behavior.value = behavior;
   el.behavior.dispatchEvent(new Event("input", { bubbles: true }));
-  hint.textContent = "已填入行为，请按实际情况修改，并继续填写结果。";
-  el.behavior.focus({ preventScroll: true });
+  if (markDone) {
+    const executed = el.form.querySelector("input[name='bExecuted'][value='1']");
+    executed.checked = true;
+    executed.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  hint.textContent = markDone ? "已填入行为并选择 B 已执行；请按实际情况填写结果，再保存记录。" : "已填入行为，请按实际情况修改，并继续填写结果。";
+  (markDone ? el.result : el.behavior).focus({ preventScroll: true });
   el.form.scrollIntoView({ block: "start", behavior: "auto" });
 }
 
