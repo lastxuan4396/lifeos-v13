@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v58 -->
+<!-- lifeos-shell-v59 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v58.css">
+  <link rel="stylesheet" href="./styles-v59.css">
 </head>
 <body>
   <main class="page">
@@ -437,6 +437,7 @@ RUIN：0
             周期
             <input id="wrWeekRange" name="wrWeekRange" type="text" placeholder="Week of 2026-03-09 ~ 2026-03-15" required>
           </label>
+          <p class="module-note">按周期带入时，请填写连续 7 天，如 2026-11-02 ~ 2026-11-08。</p>
           <div class="actions"><button id="loadWeeklyRecord" type="button" disabled>载入此周期的周复盘</button></div>
           <p id="loadWeeklyHint" class="module-note"></p>
           <label>从已保存的周复盘中选择
@@ -529,11 +530,12 @@ RUIN：0
           </div>
 
           <div class="actions">
+            <button id="wrPeriodAutofill" type="button">按复盘周期带入</button>
             <button id="wrAutofill" type="button">一键带入近7天</button>
             <button type="submit" class="primary">生成 WR-10 结果</button>
             <button id="copyWrOutput" type="button">复制 WR-10</button>
           </div>
-          <p id="wrAutofillStatus" class="module-note" role="status">近 7 天包含今天及之前 6 天，可能与上方填写的周期不同。</p>
+          <p id="wrAutofillStatus" class="module-note" role="status">可按上方周期带入；近 7 天包含今天及之前 6 天，可能与周期不同。</p>
         </form>
         <pre id="wrOutput" class="module-output empty">提交 WR-10 后显示周总结与下周执行稿</pre>
       </details>
@@ -677,6 +679,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v58.js" defer></script>
+  <script src="./app-v59.js" defer></script>
 </body>
 </html>

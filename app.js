@@ -1,4 +1,4 @@
-// lifeos-shell-v58
+// lifeos-shell-v59
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -666,6 +666,7 @@ function bindEvents() {
   if (el.wrAutofill) {
     el.wrAutofill.addEventListener("click", onWrAutofill);
   }
+  document.getElementById("wrPeriodAutofill")?.addEventListener("click", onWrPeriodAutofill);
   document.getElementById("suggestExperiment")?.addEventListener("click", onSuggestExperiment);
 
   if (el.copyWrOutput) {
@@ -1202,10 +1203,28 @@ function loadWeeklyRecord(period) {
 }
 
 function onWrAutofill() {
-  const snapshot = getScoreSnapshot(loadEntries());
+  const end = localDateISO(new Date());
+  applyWeeklyAutofill({ start: shiftDateISO(end, -6), end }, "近 7 天");
+}
+
+function onWrPeriodAutofill() {
+  const match = el.wrWeekRange.value.trim().match(/^(?:Week of\s*)?(\d{4}-\d{2}-\d{2})\s*[~～至]\s*(\d{4}-\d{2}-\d{2})$/i);
+  const validDate = (value) => {
+    const date = new Date(`${value}T00:00:00`);
+    return !Number.isNaN(date.getTime()) && localDateISO(date) === value;
+  };
+  if (!match || !validDate(match[1]) || !validDate(match[2]) || shiftDateISO(match[1], 6) !== match[2]) {
+    document.getElementById("wrAutofillStatus").textContent = "请将周期填写为连续 7 天，例如 2026-11-02 ~ 2026-11-08；也可以选择带入近 7 天。";
+    return;
+  }
+  applyWeeklyAutofill({ start: match[1], end: match[2] }, "复盘周期");
+}
+
+function applyWeeklyAutofill(period, source) {
+  const snapshot = getScoreSnapshot(loadEntries(), period);
 
   if (!snapshot.hasData) {
-    alert("近7天还没有 DL 数据，先提交至少一天 DL-30 再自动带入。");
+    document.getElementById("wrAutofillStatus").textContent = `${period.start} 至 ${period.end} 没有 DL 数据，已有指标未更改。`;
     return;
   }
 
@@ -1225,12 +1244,10 @@ function onWrAutofill() {
     const initial = field.tagName === "SELECT" ? (Array.from(field.options).find((option) => option.defaultSelected)?.value ?? field.options[0]?.value ?? "") : field.defaultValue;
     return field.value !== next && (field.value !== initial || wrScoreTouched.has(field.name));
   });
-  const end = localDateISO(new Date());
-  const start = shiftDateISO(end, -6);
-  if (changed.length && !confirm(`以下已填写的指标将被近 7 天统计替换：${changed.map((item) => item[2]).join("、")}。\n统计日期：${start} 至 ${end}。\n请确认与周复盘周期相符。是否继续？`)) return;
+  if (changed.length && !confirm(`以下已填写的指标将被${source}统计替换：${changed.map((item) => item[2]).join("、")}。\n统计日期：${period.start} 至 ${period.end}。\n是否继续？`)) return;
   for (const [field, value] of values) field.value = value;
   const saved = saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
-  document.getElementById("wrAutofillStatus").textContent = `已带入 ${start} 至 ${end} 的数据；请核对上方周期。${saved ? "草稿已保存。" : "草稿尚未保存，请查看提示。"}`;
+  document.getElementById("wrAutofillStatus").textContent = `已带入${source} ${period.start} 至 ${period.end} 的数据；请核对上方周期。${saved ? "草稿已保存。" : "草稿尚未保存，请查看提示。"}`;
 }
 
 function onSuggestExperiment() {
@@ -3674,8 +3691,8 @@ function buildScoreboard(entries) {
   ].join("\n");
 }
 
-function getScoreSnapshot(entries) {
-  const recent = getRecentEntries(entries, 7);
+function getScoreSnapshot(entries, period = null) {
+  const recent = period ? entries.filter((item) => item.date >= period.start && item.date <= period.end) : getRecentEntries(entries, 7);
   const dl = recent.length;
   const b = recent.filter((item) => item.bExecuted === 1).length;
   const bFailed = recent.filter((item) => item.bExecuted === 0).length;
