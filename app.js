@@ -1,4 +1,4 @@
-// lifeos-shell-v45
+// lifeos-shell-v46
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1378,8 +1378,21 @@ async function maybeAutoSync(reason) {
 }
 
 async function syncNowInternal(settings, options = {}) {
-  // Serialize sync requests in this tab; a save during upload queues a fresh merge.
-  const run = syncQueue.catch(() => {}).then(() => performSync(settings, options));
+  // Queue within the tab and, where supported, serialize other tabs on this site.
+  const run = syncQueue.catch(() => {}).then(async () => {
+    if (!navigator.locks?.request) return performSync(settings, options);
+    try {
+      const scopePath = new URL("./", window.location.href).pathname;
+      if (options.showStatus !== false) renderSyncStatus("正在等待同步；如果另一个标签页正在同步，会依次处理。");
+      return await navigator.locks.request(`lifeos-sync:${scopePath}`, () => {
+        if (options.showStatus !== false) renderSyncStatus("正在同步…");
+        return performSync(settings, options);
+      });
+    } catch (error) {
+      showSyncNotice(true);
+      renderSyncStatus(`同步未开始：无法协调其他标签页，请稍后重试。${String(error?.message || error)}`);
+    }
+  });
   syncQueue = run;
   return run;
 }
