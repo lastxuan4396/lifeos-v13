@@ -1,4 +1,4 @@
-// lifeos-shell-v78
+// lifeos-shell-v79
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -397,7 +397,7 @@ function bindEvents() {
     try {
       const current = localStorage.getItem(DRAFT_KEY);
       if (current !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
-      if (current !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
+      if ((current !== null || dailyDraftSaveFailed) && !confirm("当前表单有未提交内容。继续将放弃这些内容并重新载入设备数据，是否继续？")) return;
       if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
       localStorage.removeItem(DRAFT_KEY);
       dailyDraftSnapshot = null;
@@ -856,7 +856,8 @@ function loadDailyRecord(date, focusForm = false) {
   const record = loadEntries().find((item) => item.date === date);
   if (!record) { renderDailyRecordAvailability(); return; }
   try {
-    if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("载入记录会替换当前表单里的未提交内容。是否继续？")) return;
+    const current = localStorage.getItem(DRAFT_KEY);
+    if ((current !== null || dailyDraftSaveFailed) && !confirm("载入记录会替换当前表单里的未提交内容。是否继续？")) return;
   } catch {
     document.getElementById("draftStatus").textContent = "无法读取草稿，暂未载入记录。";
     return;
@@ -1283,7 +1284,8 @@ function loadWeeklyRecord(period) {
   const record = matches.find((item) => item.weekRange === period) || (matches.length === 1 ? matches[0] : null);
   if (!record) { renderWeeklyAvailability(); return; }
   try {
-    if (localStorage.getItem(WR_DRAFT_KEY) !== null && !confirm("载入记录会替换当前未提交的周复盘草稿。是否继续？")) return;
+    const current = localStorage.getItem(WR_DRAFT_KEY);
+    if ((current !== null || workflowDraftSaveFailed.has(WR_DRAFT_KEY)) && !confirm("载入记录会替换当前未提交的周复盘内容。是否继续？")) return;
   } catch {
     document.getElementById("wrDraftStatus").textContent = "无法读取草稿，暂未载入记录。";
     return;
