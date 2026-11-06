@@ -1,4 +1,4 @@
-// lifeos-shell-v94
+// lifeos-shell-v95
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -260,7 +260,9 @@ async function initOfflineSupport() {
     });
     document.getElementById("applyUpdate").addEventListener("click", () => {
       if (!registration.waiting) return;
+      if (!canActivateUpdate()) return;
       if (!confirm("网页将重新打开。请先保存正在填写的内容，是否继续？")) return;
+      if (!canActivateUpdate()) return;
       updating = true;
       registration.waiting.postMessage({ type: "ACTIVATE_UPDATE" });
     });
@@ -311,6 +313,16 @@ async function initOfflineSupport() {
     status.textContent = "离线页面准备失败，请联网后重新打开页面；记录仍保存在当前浏览器。";
     checkButton.classList.add("hidden");
     console.warn("Offline setup failed", error);
+  }
+}
+
+function canActivateUpdate() {
+  try {
+    collectBackupDrafts();
+    return true;
+  } catch {
+    document.getElementById("offlineStatus").textContent = "暂不能更新：草稿尚未保存、无法读取或与其他标签页冲突。请先保留当前内容并处理草稿提示。";
+    return false;
   }
 }
 
