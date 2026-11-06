@@ -1,4 +1,4 @@
-// lifeos-shell-v38
+// lifeos-shell-v39
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -194,10 +194,19 @@ function init() {
   restoreWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
   hydrateSyncSettingsForm();
   const hasDraft = restoreDailyDraft();
+  const params = new URLSearchParams(window.location.search);
+  const bridgeKeys = ["sleepHours", "sleep", "sleep_h", "trainingMinutes", "exerciseMinutes", "workoutMinutes", "deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes", "outputWords", "words", "writingWords", "appUsageMinutes", "softwareUsageMinutes", "usageMinutes", "screenMinutes", "phoneUsageMinutes", "mobileUsageMinutes", "iosUsageMinutes", "macUsageMinutes", "desktopUsageMinutes", "topAppName", "topApp", "topAppMinutes", "topAppUsageMinutes", "steps", "stepCount", "activeCalories", "calories", "moveCalories", "distanceKm", "workoutDistanceKm", "distance"];
+  const hasBridgeData = bridgeKeys.some((key) => params.has(key));
+  const bridgeDate = getFirstDateParam(params, ["date", "logDate"]);
   if (hasDraft) {
-    const params = new URLSearchParams(window.location.search);
-    const bridgeKeys = ["sleepHours", "sleep", "sleep_h", "trainingMinutes", "exerciseMinutes", "workoutMinutes", "deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes", "outputWords", "words", "writingWords", "appUsageMinutes", "softwareUsageMinutes", "usageMinutes", "screenMinutes", "phoneUsageMinutes", "mobileUsageMinutes", "iosUsageMinutes", "macUsageMinutes", "desktopUsageMinutes", "topAppName", "topApp", "topAppMinutes", "topAppUsageMinutes", "steps", "stepCount", "activeCalories", "calories", "moveCalories", "distanceKm", "workoutDistanceKm", "distance"];
-    if (bridgeKeys.some((key) => params.has(key))) document.getElementById("pendingBridge").classList.remove("hidden");
+    if (hasBridgeData) document.getElementById("pendingBridge").classList.remove("hidden");
+  } else if (hasBridgeData && bridgeDate && loadEntries().some((entry) => entry.date === bridgeDate)) {
+    loadDailyRecord(bridgeDate);
+    document.getElementById("pendingBridge").classList.remove("hidden");
+    mergePendingBridgeIntoDraft();
+  } else if (hasBridgeData && !bridgeDate && !params.has("date") && !params.has("logDate") && loadEntries().some((entry) => entry.date === el.date.value)) {
+    document.getElementById("pendingBridge").classList.remove("hidden");
+    document.getElementById("pendingBridgeStatus").textContent = "链接没有日期，今天已有记录。请确认设备数据日期后，重新生成带日期的链接。";
   } else {
     applyAppleAutofillFromUrl();
     hydrateMetricsFromLastAppleSync();
