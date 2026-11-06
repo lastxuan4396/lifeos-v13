@@ -1,4 +1,4 @@
-// lifeos-shell-v92
+// lifeos-shell-v93
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -482,6 +482,7 @@ function bindEvents() {
   });
   document.getElementById("loadOtherDailyDraft")?.addEventListener("click", loadOtherDailyDraft);
   window.addEventListener("storage", (event) => {
+    if (event.key === null || [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY, APPLE_SYNC_META_KEY].includes(event.key)) markSyncDataChanged();
     if (event.key === null || [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].includes(event.key)) markPlaybookOutputStale();
     if ((event.key === DRAFT_KEY || event.key === null) && event.newValue !== dailyDraftSnapshot) showDailyDraftConflict();
     if (event.key === STORAGE_KEY || event.key === null) {
@@ -1725,7 +1726,6 @@ async function onImportData() {
     renderWorkflowPanels();
     renderYesterdayBContext();
     renderAppleSyncStatus();
-    renderSyncStatus();
 
     const summary = [
       `导入成功：${file.name}`,
@@ -1858,10 +1858,11 @@ function replaceBackupData(data, drafts = null) {
         else localStorage.setItem(key, value);
       } catch { rollbackFailed = true; }
     }
-    if (rollbackFailed) markPlaybookOutputStale();
+    if (rollbackFailed) { markPlaybookOutputStale(); markSyncDataChanged(); }
     throw new Error(rollbackFailed ? "存储失败且无法完全恢复原数据，请立即检查本地记录。" : "存储失败，已恢复原有数据。请检查浏览器存储空间。");
   }
   if ([STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].some((key) => original.get(key) !== replacements.get(key))) markPlaybookOutputStale();
+  if ([STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY, APPLE_SYNC_META_KEY].some((key) => original.get(key) !== replacements.get(key))) markSyncDataChanged();
 }
 
 function loadSyncSettings() {
@@ -1940,6 +1941,11 @@ function renderSyncStatus(overrideMessage) {
     "建议：两端都点一次“同步现在（先拉后推）”后再开始日常使用。"
   ];
   setModuleOutput(el.syncOutput, lines.join("\n"), "尚未配置云同步");
+}
+
+function markSyncDataChanged() {
+  const settings = loadSyncSettings();
+  if (settings.token && settings.gistId) renderSyncStatus("本机数据已更改；尚未确认与云端同步。");
 }
 
 function onSyncSaveSettings() {
@@ -3009,6 +3015,7 @@ function applyAppleAutofillFromUrl() {
   try {
     readAppleSyncMetaStrict();
     localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta));
+    markSyncDataChanged();
     metadataSaved = true;
   } catch { /* The draft is already saved; preserve any unreadable metadata. */ }
   if (metadataSaved) renderAppleSyncStatus(meta);
@@ -4438,7 +4445,10 @@ function exportRawRecovery() {
 
 function saveCollection(key, entries) {
   readCollectionStrict(key);
-  localStorage.setItem(key, JSON.stringify(entries));
+  const next = JSON.stringify(entries);
+  const previous = localStorage.getItem(key);
+  localStorage.setItem(key, next);
+  if (previous !== next) markSyncDataChanged();
   if ([STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].includes(key)) markPlaybookOutputStale();
 }
 
