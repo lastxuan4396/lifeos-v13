@@ -1,4 +1,4 @@
-// lifeos-shell-v87
+// lifeos-shell-v88
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2045,6 +2045,7 @@ async function performSync(settings, options = {}) {
         `WR：${ensureArray(data.weeklyReviews).length} 条`,
         `Patch：${ensureArray(data.systemPatches).length} 条`
       ];
+      if (hasDuplicateWeeklyKeys(data.weeklyReviews)) lines.push("同周期多份周复盘已保留；如两端分别修改过，请手动核对各份内容。");
       renderSyncStatus(lines.join("\n"));
     }
   } catch (error) {
@@ -2175,10 +2176,9 @@ function mergeLocalAndCloud(localPayload, cloudPayload) {
     return String(b.date || "").localeCompare(String(a.date || ""));
   });
 
-  const mergedWeekly = mergeByKey(
+  const mergedWeekly = mergeWeeklyPreservingDuplicates(
     ensureArray(local.weeklyReviews),
-    ensureArray(cloud?.weeklyReviews),
-    (item) => item?.weekRange || item?.createdAt || JSON.stringify(item)
+    ensureArray(cloud?.weeklyReviews)
   ).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
   const mergedPatches = mergeByKey(
@@ -2204,6 +2204,54 @@ function mergeLocalAndCloud(localPayload, cloudPayload) {
       appleSyncMeta
     }
   };
+}
+
+function weeklySyncKey(item) {
+  return String(item?.weekRange || item?.createdAt || JSON.stringify(item));
+}
+
+function hasDuplicateWeeklyKeys(records) {
+  const seen = new Set();
+  return ensureArray(records).some((record) => {
+    const key = weeklySyncKey(record);
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
+}
+
+function mergeWeeklyPreservingDuplicates(localList, cloudList) {
+  const groups = new Map();
+  for (const [side, records] of [["local", localList], ["cloud", cloudList]]) {
+    for (const record of records) {
+      const key = weeklySyncKey(record);
+      if (!groups.has(key)) groups.set(key, {local: [], cloud: []});
+      groups.get(key)[side].push(record);
+    }
+  }
+  const merged = [];
+  for (const group of groups.values()) {
+    if (group.local.length <= 1 && group.cloud.length <= 1) {
+      merged.push(...mergeByKey(group.local, group.cloud, weeklySyncKey));
+      continue;
+    }
+    // For ambiguous duplicate keys, preserve the greatest observed number of
+    // each exact record. A changed copy remains alongside the original.
+    const counts = new Map();
+    for (const record of group.local) {
+      const signature = JSON.stringify(record);
+      counts.set(signature, (counts.get(signature) || 0) + 1);
+      merged.push(record);
+    }
+    const cloudCounts = new Map();
+    for (const record of group.cloud) {
+      const signature = JSON.stringify(record);
+      const count = (cloudCounts.get(signature) || 0) + 1;
+      cloudCounts.set(signature, count);
+      if (count > (counts.get(signature) || 0)) merged.push(record);
+    }
+  }
+  return merged;
 }
 
 function mergeByKey(localList, cloudList, keyFn) {
