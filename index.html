@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v71 -->
+<!-- lifeos-shell-v72 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v71.css">
+  <link rel="stylesheet" href="./styles-v72.css">
 </head>
 <body>
   <main class="page">
@@ -596,8 +596,14 @@ RUIN：0
       </details>
 
       <details class="flow-block">
-        <summary>Dojo 5轮训练（随时 5 分钟）</summary>
+        <summary>Dojo 5轮训练（随时 5 分钟）<span id="dojoDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="dojoForm" class="mini-form" autocomplete="off">
+          <p id="dojoDraftStatus" class="module-note" role="status">训练输入会自动保存在当前浏览器，可重新生成脚本。</p>
+          <div id="dojoDraftConflict" class="hint-card hidden" role="status">
+            <strong>另一标签页更改了训练输入</strong>
+            <p class="hint-copy">请选择保留本页内容，或载入另一份输入。</p>
+            <div class="actions"><button id="keepDojoDraft" type="button">保留本页内容</button><button id="loadDojoDraft" type="button">载入另一份输入</button></div>
+          </div>
           <div class="mini-grid">
             <label>
               场景
@@ -618,6 +624,7 @@ RUIN：0
             <button id="copyDojoOutput" type="button">复制训练脚本</button>
           </div>
         </form>
+        <p id="dojoOutputPending" class="module-note hidden" role="status">训练输入已更改；下方仍是上次生成的脚本，请重新生成。</p>
         <pre id="dojoOutput" class="module-output empty">提交场景后显示 Dojo 5轮脚本 + 评分规则</pre>
       </details>
 
@@ -686,6 +693,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v71.js" defer></script>
+  <script src="./app-v72.js" defer></script>
 </body>
 </html>

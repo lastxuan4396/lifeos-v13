@@ -1,4 +1,4 @@
-// lifeos-shell-v71
+// lifeos-shell-v72
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -9,6 +9,7 @@ const UI_MODE_KEY = "lifeos_v13_ui_mode";
 const DRAFT_KEY = "lifeos_v13_dl_draft";
 const WR_DRAFT_KEY = "lifeos_v13_wr_draft";
 const PATCH_DRAFT_KEY = "lifeos_v13_patch_draft";
+const DOJO_DRAFT_KEY = "lifeos_v13_dojo_draft";
 const SYNC_FILENAME = "lifeos-sync.json";
 const BACKUP_VERSION = "1.0";
 const CODE_ORDER = ["S", "T", "P"];
@@ -64,7 +65,7 @@ let historyLimit = 12;
 let backupPreviewRequest = 0;
 let dailyDraftSnapshot = null;
 let dailyDraftSaveFailed = false;
-const workflowDraftSnapshots = new Map([[WR_DRAFT_KEY, null], [PATCH_DRAFT_KEY, null]]);
+const workflowDraftSnapshots = new Map([[WR_DRAFT_KEY, null], [PATCH_DRAFT_KEY, null], [DOJO_DRAFT_KEY, null]]);
 const workflowDraftSaveFailed = new Set();
 const WR_SCORE_FIELDS = new Set(["wrDlDone", "wrBDone", "wrBObserved", "wrRuinDays", "wrCodeS", "wrCodeT", "wrCodeP", "wrSleepPass", "wrTrainingPass", "wrOutputPass"]);
 const wrScoreTouched = new Set();
@@ -199,6 +200,7 @@ function init() {
   bindEvents();
   restoreWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
   restoreWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
+  restoreWorkflowDraft(el.dojoForm, DOJO_DRAFT_KEY, "dojoDraftStatus", "dojoDraftBadge");
   initWorkspaceDraftStatus();
   hydrateSyncSettingsForm();
   const hasDraft = restoreDailyDraft();
@@ -343,14 +345,16 @@ function setUIMode(mode) {
 function initWorkspaceDraftStatus() {
   const wr = document.getElementById("wrDraftBadge");
   const patch = document.getElementById("patchDraftBadge");
+  const dojo = document.getElementById("dojoDraftBadge");
   const update = () => {
     const parts = [];
     if (!wr.classList.contains("hidden")) parts.push(`周复盘${wr.textContent.includes("冲突") ? "草稿冲突" : "有草稿"}`);
     if (!patch.classList.contains("hidden")) parts.push(`Patch${patch.textContent.includes("冲突") ? "草稿冲突" : "有草稿"}`);
+    if (!dojo.classList.contains("hidden")) parts.push(`训练${dojo.textContent.includes("冲突") ? "输入冲突" : "有输入"}`);
     document.getElementById("workspaceDraftStatus").textContent = parts.length ? ` · ${parts.join("、")}` : "";
   };
   const observer = new MutationObserver(update);
-  for (const badge of [wr, patch]) observer.observe(badge, { attributes: true, attributeFilter: ["class"], childList: true, characterData: true, subtree: true });
+  for (const badge of [wr, patch, dojo]) observer.observe(badge, { attributes: true, attributeFilter: ["class"], childList: true, characterData: true, subtree: true });
   update();
 }
 
@@ -453,7 +457,7 @@ function bindEvents() {
       document.getElementById("outputExternalNotice").classList.remove("hidden");
     }
     if (event.key === WR_STORAGE_KEY || event.key === null) renderWeeklyAvailability();
-    for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY]) {
+    for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY, DOJO_DRAFT_KEY]) {
       if ((event.key === key || event.key === null) && event.newValue !== workflowDraftSnapshots.get(key)) showWorkflowDraftConflict(key);
     }
   });
@@ -461,6 +465,8 @@ function bindEvents() {
   document.getElementById("loadWrDraft")?.addEventListener("click", () => loadOtherWorkflowDraft(WR_DRAFT_KEY));
   document.getElementById("keepPatchDraft")?.addEventListener("click", () => keepWorkflowDraft(PATCH_DRAFT_KEY));
   document.getElementById("loadPatchDraft")?.addEventListener("click", () => loadOtherWorkflowDraft(PATCH_DRAFT_KEY));
+  document.getElementById("keepDojoDraft")?.addEventListener("click", () => keepWorkflowDraft(DOJO_DRAFT_KEY));
+  document.getElementById("loadDojoDraft")?.addEventListener("click", () => loadOtherWorkflowDraft(DOJO_DRAFT_KEY));
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     const steps = document.getElementById("todayActionSteps").textContent;
     const defense = document.getElementById("todayRedDefense");
@@ -731,6 +737,10 @@ function bindEvents() {
 
   if (el.dojoForm) {
     el.dojoForm.addEventListener("submit", onDojoSubmit);
+    ["input", "change"].forEach((eventName) => el.dojoForm.addEventListener(eventName, () => {
+      markDojoOutputStale();
+      saveWorkflowDraft(el.dojoForm, DOJO_DRAFT_KEY, "dojoDraftStatus", "dojoDraftBadge");
+    }));
   }
 
   if (el.copyDojoStarter) {
@@ -751,6 +761,7 @@ function bindEvents() {
         alert("先生成一次 Dojo 训练脚本。");
         return;
       }
+      if (!document.getElementById("dojoOutputPending").classList.contains("hidden") && !confirm("训练输入已更改，复制的是上次生成的脚本。是否继续？")) return;
       copyWithFeedback(latestDojoOutputText, el.copyDojoOutput, "复制训练脚本");
     });
   }
@@ -1054,6 +1065,7 @@ function saveDailyEntries(entries) {
 }
 
 function workflowDraftInfo(key) {
+  if (key === DOJO_DRAFT_KEY) return { form: el.dojoForm, statusId: "dojoDraftStatus", badgeId: "dojoDraftBadge", conflictId: "dojoDraftConflict" };
   return key === WR_DRAFT_KEY
     ? { form: el.wrForm, statusId: "wrDraftStatus", badgeId: "wrDraftBadge", conflictId: "wrDraftConflict" }
     : { form: el.patchForm, statusId: "patchDraftStatus", badgeId: "patchDraftBadge", conflictId: "patchDraftConflict" };
@@ -1110,8 +1122,9 @@ function loadOtherWorkflowDraft(key) {
     if (fields !== null && (!Array.isArray(fields) || fields.some((item) => !item || typeof item !== "object" || Array.isArray(item)))) throw new Error("Invalid draft");
     info.form.reset();
     if (key === WR_DRAFT_KEY) el.wrWeekRange.value = defaultWeekRange(new Date());
-    else el.patchStartDate.value = localDateISO(new Date());
+    else if (key === PATCH_DRAFT_KEY) el.patchStartDate.value = localDateISO(new Date());
     restoreWorkflowDraft(info.form, key, info.statusId, info.badgeId);
+    if (key === DOJO_DRAFT_KEY) markDojoOutputStale();
     if (key === WR_DRAFT_KEY) renderWeeklyAvailability();
     document.getElementById(info.conflictId).classList.add("hidden");
     document.getElementById(info.statusId).textContent = raw === null ? "另一标签页已清除草稿，当前表单已重置。" : "已载入浏览器中最新的草稿。";
@@ -1137,7 +1150,7 @@ function restoreWorkflowDraft(form, key, statusId, badgeId) {
       if (field && typeof saved.value === "string") field.value = saved.value;
       if (key === WR_DRAFT_KEY && WR_SCORE_FIELDS.has(saved.name) && saved.touched !== false) wrScoreTouched.add(saved.name);
     }
-    document.getElementById(statusId).textContent = "已恢复未提交草稿，请检查内容后保存。";
+    document.getElementById(statusId).textContent = key === DOJO_DRAFT_KEY ? "已恢复上次训练输入，可以重新生成脚本。" : "已恢复未提交草稿，请检查内容后保存。";
     document.getElementById(badgeId).classList.remove("hidden");
   } catch {
     document.getElementById(statusId).textContent = "草稿无法读取，已有记录不受影响。";
@@ -1404,7 +1417,12 @@ function onDojoSubmit(event) {
   const outputText = buildDojoOutput(data);
   latestDojoStarterText = `开始训练：场景=${data.scene} 目标=${data.goal} 约束=${data.constraint}`;
   latestDojoOutputText = outputText;
+  document.getElementById("dojoOutputPending").classList.add("hidden");
   setModuleOutput(el.dojoOutput, outputText, "提交场景后显示 Dojo 5轮脚本 + 评分规则");
+}
+
+function markDojoOutputStale() {
+  if (latestDojoOutputText) document.getElementById("dojoOutputPending").classList.remove("hidden");
 }
 
 function onExportJson() {
@@ -1427,7 +1445,7 @@ function onExportJson() {
 
 function collectBackupDrafts() {
   if (dailyDraftSaveFailed || workflowDraftSaveFailed.size) throw new Error("有草稿未保存或存在冲突，请先处理后再导出完整备份。");
-  const entries = [["daily", DRAFT_KEY, dailyDraftSnapshot], ["weekly", WR_DRAFT_KEY, workflowDraftSnapshots.get(WR_DRAFT_KEY)], ["patch", PATCH_DRAFT_KEY, workflowDraftSnapshots.get(PATCH_DRAFT_KEY)]];
+  const entries = [["daily", DRAFT_KEY, dailyDraftSnapshot], ["weekly", WR_DRAFT_KEY, workflowDraftSnapshots.get(WR_DRAFT_KEY)], ["patch", PATCH_DRAFT_KEY, workflowDraftSnapshots.get(PATCH_DRAFT_KEY)], ["dojo", DOJO_DRAFT_KEY, workflowDraftSnapshots.get(DOJO_DRAFT_KEY)]];
   const drafts = {};
   for (const [name, key, snapshot] of entries) {
     const raw = localStorage.getItem(key);
@@ -1441,14 +1459,14 @@ function validateBackupDrafts(payload) {
   if (!Object.prototype.hasOwnProperty.call(payload, "drafts")) return null;
   const drafts = payload.drafts;
   if (!drafts || typeof drafts !== "object" || Array.isArray(drafts)) throw new Error("备份中的草稿格式无效，未修改现有数据。");
-  for (const name of ["daily", "weekly", "patch"]) {
+  for (const name of ["daily", "weekly", "patch", ...(Object.prototype.hasOwnProperty.call(drafts, "dojo") ? ["dojo"] : [])]) {
     const fields = drafts[name];
     if (fields === null) continue;
     if (!Array.isArray(fields) || fields.some((field) => !field || typeof field !== "object" || Array.isArray(field) || typeof field.name !== "string" || typeof field.value !== "string" || (name === "daily" && (typeof field.type !== "string" || typeof field.checked !== "boolean")))) {
       throw new Error(`备份中的 ${name} 草稿格式无效，未修改现有数据。`);
     }
   }
-  return { daily: drafts.daily, weekly: drafts.weekly, patch: drafts.patch };
+  return { daily: drafts.daily, weekly: drafts.weekly, patch: drafts.patch, ...(Object.prototype.hasOwnProperty.call(drafts, "dojo") ? { dojo: drafts.dojo } : {}) };
 }
 
 function onExportCsv() {
@@ -1482,7 +1500,7 @@ async function renderBackupPreview() {
     const restoreDrafts = document.getElementById("restoreBackupDrafts").checked;
     const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
     if (request !== backupPreviewRequest) return;
-    const draftInfo = restoreDrafts ? (drafts ? "将恢复备份草稿，空草稿会清除本机对应草稿。" : "备份没有草稿，本机草稿会保留。") : "本机草稿会保留。";
+    const draftInfo = restoreDrafts ? (drafts ? `将恢复备份草稿，空草稿会清除本机对应草稿。${Object.prototype.hasOwnProperty.call(drafts, "dojo") ? "" : "备份不含训练输入，本机训练输入会保留。"}` : "备份没有草稿，本机草稿会保留。") : "本机草稿会保留。";
     preview.textContent = `备份预览：${file.name}；每日 ${data.dailyLogs.length} 条，周复盘 ${data.weeklyReviews.length} 条，Patch ${data.systemPatches.length} 条；Apple 同步数据${data.appleSyncMeta ? "有" : "无"}。${draftInfo}尚未导入。`;
   } catch (error) {
     if (request !== backupPreviewRequest) return;
@@ -1504,12 +1522,12 @@ async function onImportData() {
     const { dailyLogs, weeklyReviews, systemPatches, appleSyncMeta } = validateBackup(parsed);
     const restoreDrafts = document.getElementById("restoreBackupDrafts").checked;
     const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
-    const draftMessage = restoreDrafts ? (drafts ? "将替换当前每日、周复盘和 Patch 草稿；备份中为空的草稿会清除。" : "该备份没有草稿，本机草稿保持不变。") : "本机草稿保持不变。";
+    const draftMessage = restoreDrafts ? (drafts ? `将替换当前每日、周复盘和 Patch 草稿；备份中为空的草稿会清除。${Object.prototype.hasOwnProperty.call(drafts, "dojo") ? "训练输入也会按备份恢复。" : "备份不含训练输入，本机训练输入保持不变。"}` : "该备份没有草稿，本机草稿保持不变。") : "本机草稿保持不变。";
     const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条。\n${draftMessage}\n建议先导出当前 JSON。确认覆盖？`);
     if (!ok) return;
 
     replaceBackupData({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta }, drafts);
-    if (drafts) restoreImportedDrafts();
+    if (drafts) restoreImportedDrafts(drafts);
 
     renderAll(loadEntries());
     renderWorkflowPanels();
@@ -1535,7 +1553,7 @@ async function onImportData() {
   }
 }
 
-function restoreImportedDrafts() {
+function restoreImportedDrafts(drafts) {
   el.form.reset();
   el.date.value = localDateISO(new Date());
   const hasDailyDraft = restoreDailyDraft();
@@ -1545,17 +1563,18 @@ function restoreImportedDrafts() {
   if (!hasDailyDraft) document.getElementById("draftStatus").textContent = "备份中没有每日草稿，表单已重置。";
   toggleRuinCodes();
 
-  for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY]) {
+  for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY, ...(Object.prototype.hasOwnProperty.call(drafts, "dojo") ? [DOJO_DRAFT_KEY] : [])]) {
     const info = workflowDraftInfo(key);
     info.form.reset();
     if (key === WR_DRAFT_KEY) el.wrWeekRange.value = defaultWeekRange(new Date());
-    else el.patchStartDate.value = localDateISO(new Date());
+    else if (key === PATCH_DRAFT_KEY) el.patchStartDate.value = localDateISO(new Date());
     const badge = document.getElementById(info.badgeId);
     badge.textContent = " · 有草稿";
     badge.classList.add("hidden");
     document.getElementById(info.conflictId).classList.add("hidden");
     document.getElementById(info.statusId).textContent = "备份中没有此草稿，表单已重置。";
     restoreWorkflowDraft(info.form, key, info.statusId, info.badgeId);
+    if (key === DOJO_DRAFT_KEY) markDojoOutputStale();
   }
   if (!document.getElementById("pendingBridge").classList.contains("hidden")) {
     document.getElementById("bridgeConflicts").classList.add("hidden");
@@ -1628,6 +1647,7 @@ function replaceBackupData(data, drafts = null) {
     for (const [key, value] of [[DRAFT_KEY, drafts.daily], [WR_DRAFT_KEY, drafts.weekly], [PATCH_DRAFT_KEY, drafts.patch]]) {
       replacements.set(key, value === null ? null : JSON.stringify(value));
     }
+    if (Object.prototype.hasOwnProperty.call(drafts, "dojo")) replacements.set(DOJO_DRAFT_KEY, drafts.dojo === null ? null : JSON.stringify(drafts.dojo));
   }
   const original = new Map([...replacements.keys()].map((key) => [key, localStorage.getItem(key)]));
   const written = [];
