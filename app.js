@@ -1,4 +1,4 @@
-// lifeos-shell-v36
+// lifeos-shell-v37
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1657,6 +1657,10 @@ function onIntentVoice() {
   rec.maxAlternatives = 1;
   rec.continuous = false;
 
+  const initialIntent = el.intent.value;
+  const initialDate = el.date?.value;
+  const voiceStatus = document.getElementById("intentVoiceStatus");
+  voiceStatus.textContent = "正在听…";
   el.intentVoice.disabled = true;
   const origin = el.intentVoice.textContent;
   el.intentVoice.textContent = "正在听...";
@@ -1677,15 +1681,24 @@ function onIntentVoice() {
   };
 
   rec.onresult = (event) => {
+    if (done) return;
     const text = String(event.results?.[0]?.[0]?.transcript || "").trim();
     if (text) {
+      if (el.intent.value !== initialIntent || el.date?.value !== initialDate) {
+        voiceStatus.textContent = "识别期间意图或日期已更改，已保留当前内容；可重新进行语音输入。";
+        return;
+      }
       el.intent.value = text;
+      el.intent.dispatchEvent(new Event("input", { bubbles: true }));
       renderIntentAssist();
       renderEngineSignal();
+      voiceStatus.textContent = "已填入语音识别结果，请核对。";
     }
   };
 
   rec.onerror = () => {
+    if (done) return;
+    voiceStatus.textContent = "语音识别失败，请再试一次。";
     alert("语音识别失败，请再试一次。");
     restore();
   };
@@ -1695,10 +1708,16 @@ function onIntentVoice() {
   };
 
   safetyTimer = setTimeout(() => {
+    voiceStatus.textContent = "语音输入超时，请重试。";
     restore();
+    try { rec.abort(); } catch { /* already stopped */ }
   }, 10000);
 
-  rec.start();
+  try { rec.start(); }
+  catch {
+    voiceStatus.textContent = "无法启动语音输入，请检查浏览器和麦克风权限。";
+    restore();
+  }
 }
 
 function onIntentAi() {
