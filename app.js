@@ -1,4 +1,4 @@
-// lifeos-shell-v59
+// lifeos-shell-v60
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -668,6 +668,7 @@ function bindEvents() {
   }
   document.getElementById("wrPeriodAutofill")?.addEventListener("click", onWrPeriodAutofill);
   document.getElementById("suggestExperiment")?.addEventListener("click", onSuggestExperiment);
+  document.getElementById("suggestPeriodExperiment")?.addEventListener("click", onSuggestPeriodExperiment);
 
   if (el.copyWrOutput) {
     el.copyWrOutput.addEventListener("click", () => {
@@ -1208,16 +1209,22 @@ function onWrAutofill() {
 }
 
 function onWrPeriodAutofill() {
-  const match = el.wrWeekRange.value.trim().match(/^(?:Week of\s*)?(\d{4}-\d{2}-\d{2})\s*[~～至]\s*(\d{4}-\d{2}-\d{2})$/i);
+  const period = parseWeeklyPeriod(el.wrWeekRange.value);
+  if (!period) {
+    document.getElementById("wrAutofillStatus").textContent = "请将周期填写为连续 7 天，例如 2026-11-02 ~ 2026-11-08；也可以选择带入近 7 天。";
+    return;
+  }
+  applyWeeklyAutofill(period, "复盘周期");
+}
+
+function parseWeeklyPeriod(value) {
+  const match = value.trim().match(/^(?:Week of\s*)?(\d{4}-\d{2}-\d{2})\s*[~～至]\s*(\d{4}-\d{2}-\d{2})$/i);
   const validDate = (value) => {
     const date = new Date(`${value}T00:00:00`);
     return !Number.isNaN(date.getTime()) && localDateISO(date) === value;
   };
-  if (!match || !validDate(match[1]) || !validDate(match[2]) || shiftDateISO(match[1], 6) !== match[2]) {
-    document.getElementById("wrAutofillStatus").textContent = "请将周期填写为连续 7 天，例如 2026-11-02 ~ 2026-11-08；也可以选择带入近 7 天。";
-    return;
-  }
-  applyWeeklyAutofill({ start: match[1], end: match[2] }, "复盘周期");
+  if (!match || !validDate(match[1]) || !validDate(match[2]) || shiftDateISO(match[1], 6) !== match[2]) return null;
+  return { start: match[1], end: match[2] };
 }
 
 function applyWeeklyAutofill(period, source) {
@@ -1251,30 +1258,44 @@ function applyWeeklyAutofill(period, source) {
 }
 
 function onSuggestExperiment() {
+  const end = localDateISO(new Date());
+  suggestExperiment({ start: shiftDateISO(end, -6), end }, "近 7 天");
+}
+
+function onSuggestPeriodExperiment() {
+  const period = parseWeeklyPeriod(el.wrWeekRange.value);
+  if (!period) {
+    document.getElementById("experimentHint").textContent = "请先将上方周期填写为连续 7 天，例如 2026-11-02 ~ 2026-11-08；也可以选择近 7 天生成。";
+    return;
+  }
+  suggestExperiment(period, "复盘周期");
+}
+
+function suggestExperiment(period, source) {
   const fields = ["wrExpName", "wrExpHypothesis", "wrExpAction", "wrExpMetric"].map((id) => document.getElementById(id));
-  if (fields.some((field) => field.value.trim()) && !confirm("实验栏已有内容，生成草案会替换这四项。是否继续？")) return;
-  const snap = getScoreSnapshot(loadEntries());
+  if (fields.some((field) => field.value.trim()) && !confirm(`实验栏已有内容，生成草案会替换这四项。\n参考日期：${period.start} 至 ${period.end}。是否继续？`)) return;
+  const snap = getScoreSnapshot(loadEntries(), period);
   let reason;
   let values;
   if (snap.ruinDays >= 2) {
-    reason = `近 7 天有 ${snap.ruinDays} 天标记红灯，先试一周低负荷启动。`;
+    reason = `有 ${snap.ruinDays} 天标记红灯，先试一周低负荷启动。`;
     values = ["五分钟保底", "如果动作足够小，低状态时也更容易启动", "每天选一个关键动作，只做 5 分钟", "7 天中至少 5 天完成并记录"];
   } else if (snap.dl < 3) {
-    reason = `近 7 天有 ${snap.dl} 条记录，先尝试建立轻量记录习惯。`;
+    reason = `有 ${snap.dl} 条记录，先尝试建立轻量记录习惯。`;
     values = ["固定时刻记录", "如果给记录一个固定时刻，更容易持续", "每天选一个方便的时刻，填写一条简短 DL-30", "7 天中至少 5 天完成记录"];
   } else if (snap.bObserved < 3) {
-    reason = `近 7 天有 ${snap.bObserved} 条记录包含明确的昨日 B 执行状态，先积累观察。`;
+    reason = `有 ${snap.bObserved} 条记录包含明确的昨日 B 执行状态，先积累观察。`;
     values = ["记录执行状态", "如果每天如实记录执行情况，就能更清楚地找到阻力", "每天填写一条简短 DL-30，并选择昨日 B 状态", "7 天中至少 5 天完成记录"];
   } else if (snap.bFailed > 0) {
-    reason = `近 7 天有 ${snap.bFailed} 条记录标记昨日 B 未执行，先降低启动门槛。`;
+    reason = `有 ${snap.bFailed} 条记录标记昨日 B 未执行，先降低启动门槛。`;
     values = ["五分钟启动", "如果先做最小一步，开始执行的阻力会降低", "每天在固定时刻开始唯一 B，先做 5 分钟", "7 天中至少 5 天完成启动并记录"];
   } else {
-    reason = `近 7 天已有 ${snap.dl} 条记录，先维持已有节奏。`;
+    reason = `已有 ${snap.dl} 条记录，先维持已有节奏。`;
     values = ["维持一个动作", "如果保持单一小动作，更容易稳定延续", "每天在固定时刻执行唯一 B，不超过 15 分钟", "7 天中至少 5 天完成并记录"];
   }
   fields.forEach((field, index) => { field.value = values[index]; });
-  document.getElementById("experimentHint").textContent = `${reason}这只是草案，请按自己的情况修改。`;
-  saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  const saved = saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  document.getElementById("experimentHint").textContent = `参考${source} ${period.start} 至 ${period.end}：${reason}这只是草案，请按自己的情况修改。${saved ? "草稿已保存。" : "草稿尚未保存，请查看提示。"}`;
 }
 
 function onPatchSubmit(event) {

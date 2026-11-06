@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v59 -->
+<!-- lifeos-shell-v60 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v59.css">
+  <link rel="stylesheet" href="./styles-v60.css">
 </head>
 <body>
   <main class="page">
@@ -462,8 +462,8 @@ RUIN：0
 
           <div class="micro-card">
             <strong>下周唯一实验（7天，≤15分钟/天）</strong>
-            <p class="module-note">可根据近 7 天记录生成一份草案，再按自己的情况修改。</p>
-            <div class="actions"><button id="suggestExperiment" type="button">生成实验草案</button></div>
+            <p class="module-note">可根据上方复盘周期或近 7 天的记录生成草案，再按自己的情况修改。</p>
+            <div class="actions"><button id="suggestPeriodExperiment" type="button">按复盘周期生成草案</button><button id="suggestExperiment" type="button">按近 7 天生成草案</button></div>
             <p id="experimentHint" class="module-note" role="status"></p>
             <div class="mini-grid">
               <label>
@@ -679,6 +679,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v59.js" defer></script>
+  <script src="./app-v60.js" defer></script>
 </body>
 </html>
