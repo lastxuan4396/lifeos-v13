@@ -1,4 +1,4 @@
-// lifeos-shell-v57
+// lifeos-shell-v58
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -65,6 +65,8 @@ let dailyDraftSnapshot = null;
 let dailyDraftSaveFailed = false;
 const workflowDraftSnapshots = new Map([[WR_DRAFT_KEY, null], [PATCH_DRAFT_KEY, null]]);
 const workflowDraftSaveFailed = new Set();
+const WR_SCORE_FIELDS = new Set(["wrDlDone", "wrBDone", "wrBObserved", "wrRuinDays", "wrCodeS", "wrCodeT", "wrCodeP", "wrSleepPass", "wrTrainingPass", "wrOutputPass"]);
+const wrScoreTouched = new Set();
 
 const el = {
   modeQuick: document.getElementById("modeQuick"),
@@ -645,6 +647,10 @@ function bindEvents() {
   if (el.wrForm) {
     el.wrForm.addEventListener("submit", onWrSubmit);
     ["input", "change"].forEach((eventName) => el.wrForm.addEventListener(eventName, (event) => {
+      if (WR_SCORE_FIELDS.has(event.target.name)) {
+        wrScoreTouched.add(event.target.name);
+        document.getElementById("wrAutofillStatus").textContent = "指标已手动调整；重新带入时请核对日期和周期。";
+      }
       if (event.target.id !== "savedWeeklyPicker") saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
     }));
   }
@@ -1037,7 +1043,7 @@ function showWorkflowDraftConflict(key) {
 
 function saveWorkflowDraft(form, key, statusId, badgeId, allowOverwrite = false) {
   const fields = Array.from(form.elements).filter((field) => field.name && !field.disabled)
-    .map((field) => ({ name: field.name, value: field.value }));
+    .map((field) => ({ name: field.name, value: field.value, ...(key === WR_DRAFT_KEY && WR_SCORE_FIELDS.has(field.name) ? { touched: wrScoreTouched.has(field.name) } : {}) }));
   try {
     if (localStorage.getItem(key) !== workflowDraftSnapshots.get(key) && !allowOverwrite) {
       showWorkflowDraftConflict(key);
@@ -1094,12 +1100,14 @@ function restoreWorkflowDraft(form, key, statusId, badgeId) {
     const raw = localStorage.getItem(key);
     workflowDraftSnapshots.set(key, raw);
     workflowDraftSaveFailed.delete(key);
+    if (key === WR_DRAFT_KEY) wrScoreTouched.clear();
     if (raw === null) return;
     const fields = JSON.parse(raw);
     if (!Array.isArray(fields)) throw new Error("Invalid draft");
     for (const saved of fields) {
       const field = Array.from(form.elements).find((item) => item.name === saved.name);
       if (field && typeof saved.value === "string") field.value = saved.value;
+      if (key === WR_DRAFT_KEY && WR_SCORE_FIELDS.has(saved.name) && saved.touched !== false) wrScoreTouched.add(saved.name);
     }
     document.getElementById(statusId).textContent = "已恢复未提交草稿，请检查内容后保存。";
     document.getElementById(badgeId).classList.remove("hidden");
@@ -1184,6 +1192,9 @@ function loadWeeklyRecord(period) {
     const key = suffix.charAt(0).toLowerCase() + suffix.slice(1);
     field.value = record[key] ?? "";
   }
+  wrScoreTouched.clear();
+  for (const field of el.wrForm.elements) if (WR_SCORE_FIELDS.has(field.name)) wrScoreTouched.add(field.name);
+  document.getElementById("wrAutofillStatus").textContent = "已载入保存的周复盘；重新带入近 7 天数据前请核对周期。";
   latestWrOutputText = typeof record.outputText === "string" ? record.outputText : "";
   setModuleOutput(el.wrOutput, latestWrOutputText, "此周期尚无保存的周复盘结果。");
   saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
@@ -1198,35 +1209,28 @@ function onWrAutofill() {
     return;
   }
 
-  if (el.wrDlDone) {
-    el.wrDlDone.value = String(snapshot.dl);
-  }
-  if (el.wrBDone) {
-    el.wrBDone.value = String(snapshot.b);
-  }
-  document.getElementById("wrBObserved").value = String(snapshot.bObserved);
-  if (el.wrRuinDays) {
-    el.wrRuinDays.value = String(snapshot.ruinDays);
-  }
-  if (el.wrCodeS) {
-    el.wrCodeS.value = String(snapshot.codeCount.S);
-  }
-  if (el.wrCodeT) {
-    el.wrCodeT.value = String(snapshot.codeCount.T);
-  }
-  if (el.wrCodeP) {
-    el.wrCodeP.value = String(snapshot.codeCount.P);
-  }
-  if (el.wrSleepPass) {
-    el.wrSleepPass.value = snapshot.sleepPass === null ? "" : String(snapshot.sleepPass);
-  }
-  if (el.wrTrainingPass) {
-    el.wrTrainingPass.value = snapshot.trainingPass === null ? "" : String(snapshot.trainingPass);
-  }
-  if (el.wrOutputPass) {
-    el.wrOutputPass.value = snapshot.outputPass === null ? "" : String(snapshot.outputPass);
-  }
-  saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  const values = [
+    [el.wrDlDone, String(snapshot.dl), "DL 完成"],
+    [el.wrBDone, String(snapshot.b), "B 执行"],
+    [document.getElementById("wrBObserved"), String(snapshot.bObserved), "B 可判断天数"],
+    [el.wrRuinDays, String(snapshot.ruinDays), "红灯天数"],
+    [el.wrCodeS, String(snapshot.codeCount.S), "S 码次数"],
+    [el.wrCodeT, String(snapshot.codeCount.T), "T 码次数"],
+    [el.wrCodeP, String(snapshot.codeCount.P), "P 码次数"],
+    [el.wrSleepPass, snapshot.sleepPass === null ? "" : String(snapshot.sleepPass), "Sleep 底线"],
+    [el.wrTrainingPass, snapshot.trainingPass === null ? "" : String(snapshot.trainingPass), "Training"],
+    [el.wrOutputPass, snapshot.outputPass === null ? "" : String(snapshot.outputPass), "Output"]
+  ].filter(([field]) => !!field);
+  const changed = values.filter(([field, next]) => {
+    const initial = field.tagName === "SELECT" ? (Array.from(field.options).find((option) => option.defaultSelected)?.value ?? field.options[0]?.value ?? "") : field.defaultValue;
+    return field.value !== next && (field.value !== initial || wrScoreTouched.has(field.name));
+  });
+  const end = localDateISO(new Date());
+  const start = shiftDateISO(end, -6);
+  if (changed.length && !confirm(`以下已填写的指标将被近 7 天统计替换：${changed.map((item) => item[2]).join("、")}。\n统计日期：${start} 至 ${end}。\n请确认与周复盘周期相符。是否继续？`)) return;
+  for (const [field, value] of values) field.value = value;
+  const saved = saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  document.getElementById("wrAutofillStatus").textContent = `已带入 ${start} 至 ${end} 的数据；请核对上方周期。${saved ? "草稿已保存。" : "草稿尚未保存，请查看提示。"}`;
 }
 
 function onSuggestExperiment() {
