@@ -1,4 +1,4 @@
-// lifeos-shell-v27
+// lifeos-shell-v28
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -694,7 +694,7 @@ function loadDailyRecord(date, focusForm = false) {
   for (const field of el.form.elements) {
     if (!field.name || field.name === "date") continue;
     const value = record[field.name];
-    if (field.type === "radio") field.checked = value !== null && value !== undefined && String(value) === field.value;
+    if (field.type === "radio") field.checked = field.name === "bExecuted" && value == null ? field.value === "unknown" : value !== null && value !== undefined && String(value) === field.value;
     else if (field.type === "checkbox") field.checked = Array.isArray(value) && value.includes(field.value);
     else if (field.tagName === "INPUT" || field.tagName === "TEXTAREA" || field.tagName === "SELECT") field.value = value ?? "";
   }
@@ -2285,7 +2285,7 @@ function getFormData() {
     date: String(fd.get("date") || "").trim(),
     behavior: String(fd.get("behavior") || "").trim(),
     result: String(fd.get("result") || "").trim(),
-    bExecuted: fd.has("bExecuted") ? Number(fd.get("bExecuted")) : null,
+    bExecuted: ["0", "1"].includes(fd.get("bExecuted")) ? Number(fd.get("bExecuted")) : null,
     ruin: Number(fd.get("ruin") || 0),
     ruinCodes,
     intent: String(fd.get("intent") || "").trim(),
@@ -2565,6 +2565,8 @@ function buildMode(entry, signals) {
     return "稳态推进模式：闭环在工作，继续低摩擦重复同一块输出。";
   }
 
+  if (entry.bExecuted == null) return "建立基线：昨日没有可参考的 B，先从一个最小行动开始。";
+
   return "重启模式：昨天中断不追责，今天先用一个最小动作恢复节奏。";
 }
 
@@ -2655,6 +2657,10 @@ function buildRisk(entry, signals) {
       risk: "若继续不执行 B，容易触发连续失败并断更。",
       defense: `固定锚点：${signals.anchor}立刻开始 B 的第一步（先做 2 分钟）。`
     };
+  }
+
+  if (entry.bExecuted == null) {
+    return { risk: "还没有可参考的 B 执行情况。", defense: "先选一个容易开始的小动作，完成后再观察。" };
   }
 
   return {
@@ -3252,7 +3258,7 @@ function renderHistory(entries) {
     const node = el.historyItemTpl.content.firstElementChild.cloneNode(true);
     const ruinCodes = item.ruinCodes?.length ? item.ruinCodes.join(",") : "-";
 
-    node.querySelector(".history-meta").textContent = `${item.date} | B=${item.bExecuted} | RUIN=${item.ruin} | 码=${ruinCodes}`;
+    node.querySelector(".history-meta").textContent = `${item.date} | B=${formatBExecuted(item.bExecuted)} | RUIN=${item.ruin} | 码=${ruinCodes}`;
     node.querySelector(".history-text").textContent = `行为：${item.behavior} | 结果：${item.result}`;
     const button = node.querySelector(".history-load");
     button.setAttribute("aria-label", `载入并编辑 ${item.date} 的记录`);
@@ -3262,6 +3268,10 @@ function renderHistory(entries) {
 
   el.history.innerHTML = "";
   el.history.appendChild(frag);
+}
+
+function formatBExecuted(value) {
+  return value === 0 || value === 1 ? String(value) : "无可参考";
 }
 
 function buildDlText(entry) {
@@ -3286,7 +3296,7 @@ function buildDlText(entry) {
     `DL-30 | ${entry.date || localDateISO(new Date())}`,
     `行为：${entry.behavior || ""}`,
     `结果：${entry.result || ""}`,
-    `昨日B执行：${entry.bExecuted}`,
+    `昨日B执行：${formatBExecuted(entry.bExecuted)}`,
     `RUIN：${entry.ruin}${ruinCodePart}`,
     `明日意图：${entry.intent || ""}`,
     deviceParts.length > 0 ? `设备数据：${deviceParts.join(" | ")}` : ""
@@ -3503,7 +3513,7 @@ function buildMarkdownExport() {
     lines.push("- 无");
   } else {
     daily.forEach((entry) => {
-      lines.push(`- ${entry.date} | B=${entry.bExecuted} | RUIN=${entry.ruin} | 码=${(entry.ruinCodes || []).join(",") || "-"}`);
+      lines.push(`- ${entry.date} | B=${formatBExecuted(entry.bExecuted)} | RUIN=${entry.ruin} | 码=${(entry.ruinCodes || []).join(",") || "-"}`);
       lines.push(`  - 行为：${entry.behavior || "-"}`);
       lines.push(`  - 结果：${entry.result || "-"}`);
     });
