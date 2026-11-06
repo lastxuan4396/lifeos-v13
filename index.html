@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v86 -->
+<!-- lifeos-shell-v87 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v86.css">
+  <link rel="stylesheet" href="./styles-v87.css">
 </head>
 <body>
   <main class="page">
@@ -422,8 +422,9 @@ RUIN：0
       <article class="card">
         <h2>最近记录</h2>
         <label>搜索记录
-          <input id="historySearch" type="search" placeholder="输入日期、行为或结果" autocomplete="off">
+          <input id="historySearch" type="search" placeholder="日期、行为、意图或 B 行动" autocomplete="off" aria-describedby="historySearchHint">
         </label>
+        <p id="historySearchHint" class="module-note">可搜索日期、行为、结果、明日意图、B 行动或头号应用；多个关键词用空格分开。</p>
         <div id="history" class="history">暂无记录</div>
         <p id="historyCount" class="module-note" aria-live="polite"></p>
         <div class="actions">
@@ -712,6 +713,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v86.js" defer></script>
+  <script src="./app-v87.js" defer></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// lifeos-shell-v86
+// lifeos-shell-v87
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -4153,8 +4153,13 @@ function renderHistory(entries) {
   const more = document.getElementById("historyMore");
   const less = document.getElementById("historyLess");
   const query = document.getElementById("historySearch").value.trim().toLocaleLowerCase();
-  const sorted = entries.filter((entry) => [entry.date, entry.behavior, entry.result]
-    .some((value) => String(value ?? "").toLocaleLowerCase().includes(query)))
+  const terms = query ? query.split(/\s+/) : [];
+  const sorted = entries.filter((entry) => {
+    const searchable = [entry.date, entry.behavior, entry.result, entry.intent, entry.topAppName,
+      ...(Array.isArray(entry.output?.b) ? entry.output.b : [])]
+      .map((value) => String(value ?? "").toLocaleLowerCase()).join("\n");
+    return terms.every((term) => searchable.includes(term));
+  })
     .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
   more.classList.toggle("hidden", sorted.length <= historyLimit);
   less.classList.toggle("hidden", historyLimit <= 12 || sorted.length <= 12);
@@ -4173,7 +4178,11 @@ function renderHistory(entries) {
     const ruinCodes = item.ruinCodes?.length ? item.ruinCodes.join(",") : "-";
 
     node.querySelector(".history-meta").textContent = `${item.date} | B=${formatBExecuted(item.bExecuted)} | RUIN=${item.ruin} | 码=${ruinCodes}`;
-    node.querySelector(".history-text").textContent = `行为：${item.behavior} | 结果：${item.result}`;
+    const details = [`行为：${item.behavior || ""}`, `结果：${item.result || ""}`];
+    if (item.intent) details.push(`明日意图：${item.intent}`);
+    if (query && Array.isArray(item.output?.b) && item.output.b.length) details.push(`B 行动：${item.output.b.join("；")}`);
+    if (query && item.topAppName) details.push(`头号应用：${item.topAppName}`);
+    node.querySelector(".history-text").textContent = details.join(" | ");
     const button = node.querySelector(".history-load");
     button.setAttribute("aria-label", `载入并编辑 ${item.date} 的记录`);
     button.addEventListener("click", () => loadDailyRecord(item.date, true));
