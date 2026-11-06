@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v75 -->
+<!-- lifeos-shell-v76 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v75.css">
+  <link rel="stylesheet" href="./styles-v76.css">
 </head>
 <body>
   <main class="page">
@@ -588,11 +588,13 @@ RUIN：0
             <input id="playbookMonth" name="playbookMonth" type="month">
           </label>
           <p class="module-note">基于已保存的 WR / DL / Patch 自动提炼：Top动作、Top触发器、Anti-ruin、实验库。</p>
+          <p class="module-note">每日记录按日期，周复盘按周期结束日，Patch 按开始日归入月份；无法识别日期时按保存月。</p>
           <div class="actions">
             <button id="buildPlaybook" type="button" class="primary">生成 Playbook v1 草案</button>
             <button id="copyPlaybook" type="button">复制 Playbook</button>
           </div>
         </div>
+        <p id="playbookOutputPending" class="module-note hidden" role="status">月份已更改；下方仍是上次生成的 Playbook，请重新生成。</p>
         <pre id="playbookOutput" class="module-output empty">点击“生成 Playbook v1 草案”后显示</pre>
       </details>
 
@@ -695,6 +697,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v75.js" defer></script>
+  <script src="./app-v76.js" defer></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// lifeos-shell-v75
+// lifeos-shell-v76
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -754,9 +754,13 @@ function bindEvents() {
         alert("先生成一次 Playbook 草案。");
         return;
       }
+      if (!document.getElementById("playbookOutputPending").classList.contains("hidden") && !confirm("月份已更改，复制的是上次生成的 Playbook。是否继续？")) return;
       copyWithFeedback(latestPlaybookOutputText, el.copyPlaybook, "复制 Playbook");
     });
   }
+  el.playbookMonth?.addEventListener("change", () => {
+    if (latestPlaybookOutputText) document.getElementById("playbookOutputPending").classList.remove("hidden");
+  });
 
   if (el.dojoForm) {
     el.dojoForm.addEventListener("submit", onDojoSubmit);
@@ -1435,6 +1439,7 @@ function onBuildPlaybook() {
   const month = el.playbookMonth?.value || localMonthISO(new Date());
   const outputText = buildPlaybookOutput(month);
   latestPlaybookOutputText = outputText;
+  document.getElementById("playbookOutputPending").classList.add("hidden");
   setModuleOutput(el.playbookOutput, outputText, "点击“生成 Playbook v1 草案”后显示");
 }
 
@@ -3544,9 +3549,17 @@ function buildPlaybookOutput(month) {
   const dailyEntries = loadEntries();
   const patchEntries = loadCollection(PATCH_STORAGE_KEY);
 
-  const wrInMonth = wrEntries.filter((item) => inMonth(item.createdAt, month));
+  const wrInMonth = wrEntries.filter((item) => {
+    const period = parseWeeklyPeriod(String(item.weekRange || ""));
+    return period ? period.end.slice(0, 7) === month : inMonth(item.createdAt, month);
+  });
   const dailyInMonth = dailyEntries.filter((item) => String(item.date || "").startsWith(month));
-  const patchInMonth = patchEntries.filter((item) => inMonth(item.createdAt, month));
+  const patchInMonth = patchEntries.filter((item) => {
+    const start = String(item.startDate || "");
+    const date = new Date(`${start}T00:00:00`);
+    const valid = /^\d{4}-\d{2}-\d{2}$/.test(start) && !Number.isNaN(date.getTime()) && localDateISO(date) === start;
+    return valid ? start.slice(0, 7) === month : inMonth(item.createdAt, month);
+  });
 
   const actionCounter = new Map();
   const triggerCounter = new Map();
@@ -3605,8 +3618,9 @@ function buildPlaybookOutput(month) {
   return [
     `Playbook v1 | Month of ${month}`,
     `样本：WR ${wrInMonth.length} 条 | DL ${dailyInMonth.length} 条 | Patch ${patchInMonth.length} 条`,
+    "归类：周复盘按周期结束月，Patch 按开始月；日期无法识别时按保存月。",
     "",
-    "1) Top 10 高收益动作",
+    "1) Top 10 高频记录动作（按出现次数）",
     ...toListOrFallback(topActions, "本月 WR 样本不足，先延用：每天固定 15 分钟单点输出。"),
     "",
     "2) Top 10 高频触发器/坑",
