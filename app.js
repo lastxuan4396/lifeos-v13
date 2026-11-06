@@ -1,4 +1,4 @@
-// lifeos-shell-v63
+// lifeos-shell-v64
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -441,9 +441,17 @@ function bindEvents() {
   window.addEventListener("storage", (event) => {
     if ((event.key === DRAFT_KEY || event.key === null) && event.newValue !== dailyDraftSnapshot) showDailyDraftConflict();
     if (event.key === STORAGE_KEY || event.key === null) {
-      renderTodayAction(loadEntries());
+      const entries = loadEntries();
+      el.scoreboard.textContent = buildScoreboard(entries);
+      renderTodayAction(entries);
+      renderPatchReminder(entries);
+      renderHistory(entries);
+      renderYesterdayBContext();
+      renderQuickFillCard();
       renderDailyRecordAvailability();
+      document.getElementById("outputExternalNotice").classList.remove("hidden");
     }
+    if (event.key === WR_STORAGE_KEY || event.key === null) renderWeeklyAvailability();
     for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY]) {
       if ((event.key === key || event.key === null) && event.newValue !== workflowDraftSnapshots.get(key)) showWorkflowDraftConflict(key);
     }
@@ -3540,6 +3548,7 @@ function toggleRuinCodes() {
 }
 
 function renderAll(entries, outputObj, outputDate) {
+  document.getElementById("outputExternalNotice").classList.add("hidden");
   const output = outputObj === undefined ? entries[0]?.output : outputObj;
   const shownDate = outputDate || (outputObj === undefined ? entries[0]?.date : "");
   document.getElementById("outputDate").textContent = shownDate ? (output?.text ? `依据 ${shownDate} 的记录生成` : `${shownDate} 的记录暂无已保存输出`) : "";
