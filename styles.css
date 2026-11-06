@@ -1,4 +1,4 @@
-/* lifeos-shell-v41 */
+/* lifeos-shell-v42 */
 :root {
   --bg: #f4f4ee;
   --ink: #1f1e17;
@@ -669,6 +669,11 @@ button:hover {
 }
 
 @media (max-width: 560px) {
+  button,
+  fieldset .inline {
+    min-height: 44px;
+  }
+
   input:not([type="radio"]):not([type="checkbox"]),
   select,
   textarea {
