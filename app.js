@@ -1,4 +1,4 @@
-// lifeos-shell-v81
+// lifeos-shell-v82
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -484,6 +484,8 @@ function bindEvents() {
     }
     if (event.key === WR_STORAGE_KEY || event.key === null) renderWeeklyAvailability();
     if (event.key === PATCH_STORAGE_KEY || event.key === null) loadCollection(PATCH_STORAGE_KEY);
+    if (event.key === WR_STORAGE_KEY || event.key === null) markWorkflowOutputStale(WR_DRAFT_KEY);
+    if (event.key === PATCH_STORAGE_KEY || event.key === null) markWorkflowOutputStale(PATCH_DRAFT_KEY);
     if (event.key === APPLE_SYNC_META_KEY || event.key === null) renderAppleSyncStatus();
     for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY, DOJO_DRAFT_KEY]) {
       if ((event.key === key || event.key === null) && event.newValue !== workflowDraftSnapshots.get(key)) showWorkflowDraftConflict(key);
@@ -733,6 +735,7 @@ function bindEvents() {
         alert("先生成一次 WR-10 结果。");
         return;
       }
+      if (!document.getElementById("wrOutputPending").classList.contains("hidden") && !confirm("周复盘输入或记录可能已更改，复制的是当前显示的旧结果。是否继续？")) return;
       copyWithFeedback(latestWrOutputText, el.copyWrOutput, "复制 WR-10");
     });
   }
@@ -748,6 +751,7 @@ function bindEvents() {
         alert("先生成一次 Patch 规则。");
         return;
       }
+      if (!document.getElementById("patchOutputPending").classList.contains("hidden") && !confirm("Patch 输入或记录可能已更改，复制的是当前显示的旧结果。是否继续？")) return;
       copyWithFeedback(latestPatchOutputText, el.copyPatchOutput, "复制 Patch");
     });
   }
@@ -1116,6 +1120,7 @@ function showWorkflowDraftConflict(key) {
 }
 
 function saveWorkflowDraft(form, key, statusId, badgeId, allowOverwrite = false) {
+  markWorkflowOutputStale(key);
   const fields = Array.from(form.elements).filter((field) => field.name && !field.disabled)
     .map((field) => ({ name: field.name, value: field.value, ...(key === WR_DRAFT_KEY && WR_SCORE_FIELDS.has(field.name) ? { touched: wrScoreTouched.has(field.name) } : {}) }));
   try {
@@ -1177,6 +1182,7 @@ function loadOtherWorkflowDraft(key) {
     else if (key === PATCH_DRAFT_KEY) el.patchStartDate.value = localDateISO(new Date());
     restoreWorkflowDraft(info.form, key, info.statusId, info.badgeId);
     if (key === DOJO_DRAFT_KEY) markDojoOutputStale();
+    else markWorkflowOutputStale(key);
     if (key === WR_DRAFT_KEY) renderWeeklyAvailability();
     document.getElementById(info.conflictId).classList.add("hidden");
     document.getElementById(info.statusId).textContent = raw === null ? "另一标签页已清除草稿，当前表单已重置。" : "已载入浏览器中最新的草稿。";
@@ -1264,6 +1270,7 @@ function onWrSubmit(event) {
   }
   latestWrOutputText = outputText;
   setModuleOutput(el.wrOutput, outputText, "提交 WR-10 后显示周总结与下周执行稿");
+  document.getElementById("wrOutputPending").classList.add("hidden");
   clearWorkflowDraft(WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
   renderWeeklyAvailability();
   void maybeAutoSync("WR-10");
@@ -1308,6 +1315,7 @@ function loadWeeklyRecord(period) {
   latestWrOutputText = typeof record.outputText === "string" ? record.outputText : "";
   setModuleOutput(el.wrOutput, latestWrOutputText, "此周期尚无保存的周复盘结果。");
   saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  document.getElementById("wrOutputPending").classList.add("hidden");
   renderWeeklyAvailability();
 }
 
@@ -1447,6 +1455,7 @@ function onPatchSubmit(event) {
   }
   latestPatchOutputText = outputText;
   setModuleOutput(el.patchOutput, outputText, "提交 System Patch 后显示新规则（<=3条）");
+  document.getElementById("patchOutputPending").classList.add("hidden");
   clearWorkflowDraft(PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
   void maybeAutoSync("Patch");
 }
@@ -3888,6 +3897,13 @@ function renderWorkflowPanels() {
     latestPatchOutputText = "";
     setModuleOutput(el.patchOutput, "", "提交 System Patch 后显示新规则（<=3条）");
   }
+  document.getElementById("wrOutputPending").classList.toggle("hidden", !latestWrOutputText || buildWrOutput(getWrData()) === latestWrOutputText);
+  document.getElementById("patchOutputPending").classList.toggle("hidden", !latestPatchOutputText || buildPatchOutput(getPatchData()) === latestPatchOutputText);
+}
+
+function markWorkflowOutputStale(key) {
+  if (key === WR_DRAFT_KEY && latestWrOutputText) document.getElementById("wrOutputPending").classList.remove("hidden");
+  if (key === PATCH_DRAFT_KEY && latestPatchOutputText) document.getElementById("patchOutputPending").classList.remove("hidden");
 }
 
 function renderYesterdayBContext() {

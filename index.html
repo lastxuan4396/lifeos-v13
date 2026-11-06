@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v81 -->
+<!-- lifeos-shell-v82 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v81.css">
+  <link rel="stylesheet" href="./styles-v82.css">
 </head>
 <body>
   <main class="page">
@@ -551,6 +551,7 @@ RUIN：0
           </div>
           <p id="wrAutofillStatus" class="module-note" role="status">可按上方周期带入；近 7 天包含今天及之前 6 天，可能与周期不同。</p>
         </form>
+        <p id="wrOutputPending" class="module-note hidden" role="status">下方是先前保存的周复盘结果，可能与当前输入不同；请载入对应记录或重新生成。</p>
         <pre id="wrOutput" class="module-output empty">提交 WR-10 后显示周总结与下周执行稿</pre>
       </details>
 
@@ -584,6 +585,7 @@ RUIN：0
             <button id="copyPatchOutput" type="button">复制 Patch</button>
           </div>
         </form>
+        <p id="patchOutputPending" class="module-note hidden" role="status">下方是先前保存的 Patch 结果，可能与当前输入不同；请重新生成。</p>
         <pre id="patchOutput" class="module-output empty">提交 System Patch 后显示新规则（≤3条）</pre>
       </details>
 
@@ -704,6 +706,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v81.js" defer></script>
+  <script src="./app-v82.js" defer></script>
 </body>
 </html>
