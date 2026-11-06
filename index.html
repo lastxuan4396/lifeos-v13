@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v55 -->
+<!-- lifeos-shell-v56 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v55.css">
+  <link rel="stylesheet" href="./styles-v56.css">
 </head>
 <body>
   <main class="page">
@@ -367,7 +367,10 @@ RUIN：0
           <p class="exec-label">明日执行焦点（只做 B）</p>
           <pre id="bFocus" class="exec-focus">提交 DL-30 后，这里会锁定显示你明天唯一要做的 B。</pre>
         </div>
-        <div id="output" class="output empty">提交 DL-30 后显示 A/B/C/D</div>
+        <details id="fullOutputDetails" class="full-output-details">
+          <summary>查看完整 A/B/C/D</summary>
+          <div id="output" class="output empty">提交 DL-30 后显示 A/B/C/D</div>
+        </details>
         <div id="woopLiteCard" class="execution-lock woop-card hidden">
           <p class="exec-label">WOOP-lite（连续失败自动触发）</p>
           <pre id="woopLiteText" class="exec-focus">连续 2 天 B=0 时，这里会自动给出“障碍 -> if-then 计划”。</pre>
@@ -664,6 +667,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v55.js" defer></script>
+  <script src="./app-v56.js" defer></script>
 </body>
 </html>

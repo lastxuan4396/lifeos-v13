@@ -1,4 +1,4 @@
-// lifeos-shell-v55
+// lifeos-shell-v56
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -334,6 +334,7 @@ function setUIMode(mode) {
     el.intentDetails.open = nextMode === "full";
   }
   document.getElementById("secondaryWorkspace").open = nextMode === "full";
+  document.getElementById("fullOutputDetails").open = nextMode === "full";
 }
 
 function initWorkspaceDraftStatus() {
