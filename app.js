@@ -1,4 +1,4 @@
-// lifeos-shell-v84
+// lifeos-shell-v85
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -58,6 +58,7 @@ let latestOutputText = "";
 let latestOutputDate = "";
 let latestWrOutputText = "";
 let latestPatchOutputText = "";
+let selectedWeeklyRecord = null;
 let latestPlaybookOutputText = "";
 let latestDojoOutputText = "";
 let latestDojoStarterText = "";
@@ -709,6 +710,7 @@ function bindEvents() {
     }));
   }
   el.wrWeekRange?.addEventListener("input", () => {
+    selectedWeeklyRecord = null;
     renderWeeklyAvailability();
     document.getElementById("wrPeriodStatus").textContent = "周期已更改；现有复盘内容、指标、实验和结果不会自动更新，请核对或载入此周期的记录。";
   });
@@ -717,8 +719,8 @@ function bindEvents() {
   document.getElementById("loadWeeklyRecord")?.addEventListener("click", () => loadWeeklyRecord(el.wrWeekRange.value.trim()));
   document.getElementById("savedWeeklyPicker")?.addEventListener("change", (event) => {
     event.stopPropagation();
-    const period = event.currentTarget.value;
-    if (period) loadWeeklyRecord(period);
+    const option = event.currentTarget.selectedOptions[0];
+    if (option?.value) loadWeeklyRecord(null, Number(option.value) - 1, option.dataset.signature);
     event.currentTarget.value = "";
   });
 
@@ -1252,12 +1254,23 @@ function onWrSubmit(event) {
   }
   const entries = loadCollection(WR_STORAGE_KEY);
   const matches = matchingWeeklyRecords(entries, data.weekRange);
-  const exact = matches.find((item) => item.weekRange === data.weekRange);
-  if (matches.length > 1 && !exact) {
+  const exactMatches = matches.filter((item) => item.weekRange === data.weekRange);
+  let existing = null;
+  let selectedIndex = -1;
+  if (selectedWeeklyRecord && selectedWeeklyRecord.weekRange === data.weekRange) {
+    selectedIndex = selectedWeeklyRecord.index;
+    if (!entries[selectedIndex] || JSON.stringify(entries[selectedIndex]) !== selectedWeeklyRecord.signature) {
+      document.getElementById("wrPeriodStatus").textContent = "所选记录已变化，请重新选择后再保存；当前输入仍保留。";
+      renderWeeklyAvailability();
+      return;
+    }
+    existing = entries[selectedIndex];
+  } else if (exactMatches.length === 1) existing = exactMatches[0];
+  else if (!exactMatches.length && matches.length === 1) existing = matches[0];
+  else if (matches.length > 1) {
     document.getElementById("wrPeriodStatus").textContent = "这个日期范围已有多份周复盘，请先从已保存的周期中选择要修改的记录。";
     return;
   }
-  const existing = exact || matches[0];
   if (existing) {
     const others = matches.length > 1 ? "其他同日期记录会保留。\n" : "";
     if (!confirm(`已有周复盘：${existing.weekRange}。继续将覆盖这条记录。\n${others}是否继续？`)) return;
@@ -1272,7 +1285,11 @@ function onWrSubmit(event) {
     createdAt: new Date().toISOString()
   };
 
-  const next = upsertByKey(entries, entry, "weekRange");
+  const next = entries.slice();
+  const replaceIndex = selectedIndex >= 0 ? selectedIndex : entries.indexOf(existing);
+  if (replaceIndex >= 0) next[replaceIndex] = entry;
+  else next.unshift(entry);
+  next.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
   try { saveCollection(WR_STORAGE_KEY, next); } catch {
     document.getElementById("wrDraftStatus").textContent = "保存失败，请检查浏览器存储空间；请勿关闭页面，并先复制当前内容。";
     return;
@@ -1280,6 +1297,7 @@ function onWrSubmit(event) {
   latestWrOutputText = outputText;
   setModuleOutput(el.wrOutput, outputText, "提交 WR-10 后显示周总结与下周执行稿");
   document.getElementById("wrOutputPending").classList.add("hidden");
+  selectedWeeklyRecord = null;
   clearWorkflowDraft(WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
   renderWeeklyAvailability();
   void maybeAutoSync("WR-10");
@@ -1288,20 +1306,32 @@ function onWrSubmit(event) {
 function renderWeeklyAvailability() {
   const records = loadCollection(WR_STORAGE_KEY);
   const matches = matchingWeeklyRecords(records, el.wrWeekRange.value);
-  const exact = matches.find((item) => item.weekRange === el.wrWeekRange.value.trim());
-  const record = exact || (matches.length === 1 ? matches[0] : null);
+  const exact = matches.filter((item) => item.weekRange === el.wrWeekRange.value.trim());
+  const record = exact.length === 1 ? exact[0] : (matches.length === 1 ? matches[0] : null);
   document.getElementById("loadWeeklyRecord").disabled = !record;
   document.getElementById("loadWeeklyHint").textContent = matches.length > 1 ? "此日期范围有多份周复盘，请从下方选择要载入的记录。" : record ? `此周期已有周复盘（${record.weekRange}），可以载入后修改。` : "此周期暂无已保存的周复盘。";
   const picker = document.getElementById("savedWeeklyPicker");
-  const periods = [...new Set(records.map((item) => item.weekRange).filter((value) => typeof value === "string" && value.trim()))];
-  picker.replaceChildren(new Option(periods.length ? "选择已保存的周期" : "暂无已保存的周复盘", ""));
-  periods.forEach((period) => picker.add(new Option(period, period)));
-  picker.disabled = periods.length === 0;
+  const available = records.map((record, index) => ({record, index})).filter(({record}) => typeof record.weekRange === "string" && record.weekRange.trim());
+  picker.replaceChildren(new Option(available.length ? "选择已保存的周复盘" : "暂无已保存的周复盘", ""));
+  available.forEach(({record, index}) => {
+    const label = `${record.weekRange} · ${shortenIntentText(record.bestAction, 32) || "未填写动作"} · 第 ${index + 1} 条`;
+    const option = new Option(label, String(index + 1));
+    option.dataset.signature = JSON.stringify(record);
+    picker.add(option);
+  });
+  picker.disabled = available.length === 0;
 }
 
-function loadWeeklyRecord(period) {
-  const matches = matchingWeeklyRecords(loadCollection(WR_STORAGE_KEY), period);
-  const record = matches.find((item) => item.weekRange === period) || (matches.length === 1 ? matches[0] : null);
+function loadWeeklyRecord(period, chosenIndex = null, signature = null) {
+  const entries = loadCollection(WR_STORAGE_KEY);
+  const matches = period === null ? [] : matchingWeeklyRecords(entries, period);
+  const exact = matches.filter((item) => item.weekRange === period);
+  const record = chosenIndex === null ? (exact.length === 1 ? exact[0] : (matches.length === 1 ? matches[0] : null)) : entries[chosenIndex];
+  if (chosenIndex !== null && (!record || JSON.stringify(record) !== signature)) {
+    renderWeeklyAvailability();
+    document.getElementById("wrPeriodStatus").textContent = "记录已变化，请重新选择；当前输入未更改。";
+    return;
+  }
   if (!record) { renderWeeklyAvailability(); return; }
   try {
     const current = localStorage.getItem(WR_DRAFT_KEY);
@@ -1311,6 +1341,7 @@ function loadWeeklyRecord(period) {
     return;
   }
   el.wrWeekRange.value = record.weekRange;
+  selectedWeeklyRecord = {index: entries.indexOf(record), signature: JSON.stringify(record), weekRange: record.weekRange};
   for (const field of el.wrForm.elements) {
     if (!field.name?.startsWith("wr") || field.name === "wrWeekRange") continue;
     const suffix = field.name.slice(2);
@@ -1324,7 +1355,7 @@ function loadWeeklyRecord(period) {
   latestWrOutputText = typeof record.outputText === "string" ? record.outputText : "";
   setModuleOutput(el.wrOutput, latestWrOutputText, "此周期尚无保存的周复盘结果。");
   saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
-  document.getElementById("wrOutputPending").classList.add("hidden");
+  document.getElementById("wrOutputPending").classList.toggle("hidden", !latestWrOutputText || buildWrOutput(getWrData()) === latestWrOutputText);
   renderWeeklyAvailability();
 }
 
