@@ -1,4 +1,4 @@
-// lifeos-shell-v56
+// lifeos-shell-v57
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -3458,6 +3458,7 @@ function renderAll(entries, outputObj, outputDate) {
   const shownDate = outputDate || (outputObj === undefined ? entries[0]?.date : "");
   document.getElementById("outputDate").textContent = shownDate ? (output?.text ? `依据 ${shownDate} 的记录生成` : `${shownDate} 的记录暂无已保存输出`) : "";
   renderExecutionFocus(output);
+  renderRedDefense(entries.find((entry) => entry.date === shownDate), output);
   renderWoopLite(output);
 
   if (output?.text) {
@@ -3495,6 +3496,12 @@ function renderTodayAction(entries) {
   section.classList.toggle("hidden", steps.length === 0);
   document.getElementById("todayActionSource").textContent = steps.length ? `来自 ${yesterday} 的记录` : "";
   document.getElementById("todayActionSteps").textContent = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
+  const red = getSavedRedDefense(entry, entry?.output);
+  document.getElementById("todayRedDefense").classList.toggle("hidden", !red.isRed || !steps.length);
+  document.getElementById("todayRedDefenseText").textContent = red.text || "这条红灯记录没有可识别的防线，请查看昨日完整输出。";
+  const legacyOutput = document.getElementById("todayLegacyOutput");
+  legacyOutput.classList.toggle("hidden", !red.isRed || !!red.text || !entry?.output?.text);
+  document.getElementById("todayLegacyOutputText").textContent = entry?.output?.text || "";
   document.getElementById("todayRecordState").textContent = todayEntry ? `今天已有记录，昨日 B：${todayEntry.bExecuted === 1 ? "已执行" : todayEntry.bExecuted === 0 ? "未执行" : "无可参考"}。如需调整，请载入今日记录。` : "";
   document.getElementById("markTodayActionDone").classList.toggle("hidden", !!todayEntry);
   document.getElementById("useTodayAction").classList.toggle("hidden", !!todayEntry);
@@ -3573,6 +3580,21 @@ function renderExecutionFocus(output) {
 
   const steps = output.b.slice(0, 6).map((step, index) => `${index + 1}. ${step}`);
   el.bFocus.textContent = steps.join("\n");
+}
+
+function getSavedRedDefense(entry, output) {
+  const sleep = toNumber(entry?.sleepHours);
+  const isRed = Number(entry?.ruin) === 1 || (sleep !== null && sleep < 6.5) || output?.signals?.effectiveRed === true;
+  if (!isRed || !output) return { isRed: false, text: "" };
+  const structured = typeof output.risk?.defense === "string" ? output.risk.defense.trim() : "";
+  const legacy = typeof output.text === "string" ? output.text.match(/(?:^|\n)防线[：:]\s*([^\n]+)/)?.[1]?.trim() : "";
+  return { isRed: true, text: structured || legacy || "" };
+}
+
+function renderRedDefense(entry, output) {
+  const red = getSavedRedDefense(entry, output);
+  document.getElementById("redDefense").classList.toggle("hidden", !red.isRed);
+  document.getElementById("redDefenseText").textContent = red.text || "这条红灯记录没有可识别的防线，请展开完整 A/B/C/D 查看。";
 }
 
 function renderWorkflowPanels() {

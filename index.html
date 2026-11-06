@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v56 -->
+<!-- lifeos-shell-v57 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v56.css">
+  <link rel="stylesheet" href="./styles-v57.css">
 </head>
 <body>
   <main class="page">
@@ -38,6 +38,11 @@
       <h2 id="todayActionTitle">今天要做的 B</h2>
       <p id="todayActionSource" class="module-note"></p>
       <pre id="todayActionSteps" class="exec-focus"></pre>
+      <div id="todayRedDefense" class="execution-lock red-defense hidden">
+        <p class="exec-label">同时遵守的红灯防线</p>
+        <pre id="todayRedDefenseText" class="exec-focus"></pre>
+        <details id="todayLegacyOutput" class="hidden"><summary>查看昨日完整输出</summary><pre id="todayLegacyOutputText" class="exec-focus"></pre></details>
+      </div>
       <p id="todayRecordState" class="module-note"></p>
       <div class="actions">
         <button id="markTodayActionDone" type="button" class="primary">已完成，填写记录</button>
@@ -367,6 +372,10 @@ RUIN：0
           <p class="exec-label">明日执行焦点（只做 B）</p>
           <pre id="bFocus" class="exec-focus">提交 DL-30 后，这里会锁定显示你明天唯一要做的 B。</pre>
         </div>
+        <div id="redDefense" class="execution-lock red-defense hidden">
+          <p class="exec-label">红灯防线</p>
+          <pre id="redDefenseText" class="exec-focus"></pre>
+        </div>
         <details id="fullOutputDetails" class="full-output-details">
           <summary>查看完整 A/B/C/D</summary>
           <div id="output" class="output empty">提交 DL-30 后显示 A/B/C/D</div>
@@ -667,6 +676,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v56.js" defer></script>
+  <script src="./app-v57.js" defer></script>
 </body>
 </html>

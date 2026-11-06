@@ -1,4 +1,4 @@
-/* lifeos-shell-v56 */
+/* lifeos-shell-v57 */
 :root {
   --bg: #f4f4ee;
   --ink: #1f1e17;
@@ -609,6 +609,12 @@ button:hover {
   border-radius: 12px;
   padding: 10px;
   margin-bottom: 10px;
+}
+
+.red-defense {
+  border-color: #d9b4a8;
+  background: #fff5f0;
+  margin-top: 10px;
 }
 
 .woop-card {
