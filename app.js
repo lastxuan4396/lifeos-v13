@@ -1,4 +1,4 @@
-// lifeos-shell-v37
+// lifeos-shell-v38
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2090,6 +2090,11 @@ function applyAppleAutofillFromUrl() {
     return;
   }
 
+  if ((params.has("date") || params.has("logDate")) && !getFirstDateParam(params, ["date", "logDate"])) {
+    document.getElementById("draftStatus").textContent = "设备数据的日期无效，尚未回填；请检查设备链接。";
+    return;
+  }
+
   const payload = {
     source: String(params.get("source") || "external").trim(),
     date: getFirstDateParam(params, ["date", "logDate"]),
@@ -2179,13 +2184,19 @@ function applyAppleAutofillFromUrl() {
     }
   };
 
-  localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta));
   renderSleepRuinAssist();
   renderIntentAssist();
+  if (!saveDailyDraft()) {
+    document.getElementById("draftStatus").textContent = "设备数据已填入但草稿保存失败，请保留页面并检查浏览器存储；设备链接仍在。";
+    return;
+  }
+  try { localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta)); }
+  catch { /* Draft is already saved; metadata is optional. */ }
   renderAppleSyncStatus(meta);
+  document.getElementById("draftStatus").textContent = "设备数据已填入并保存为草稿，请核对后保存记录。";
 
   if (window.history?.replaceState) {
-    window.history.replaceState({}, "", window.location.pathname);
+    window.history.replaceState({}, "", window.location.pathname + window.location.hash);
   }
 }
 
@@ -2333,7 +2344,8 @@ function getFirstDateParam(params, keys) {
     if (!value) {
       continue;
     }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const parsed = new Date(`${value}T00:00:00`);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(parsed.getTime()) && localDateISO(parsed) === value) {
       return value;
     }
   }
