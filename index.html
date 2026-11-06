@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v85 -->
+<!-- lifeos-shell-v86 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v85.css">
+  <link rel="stylesheet" href="./styles-v86.css">
 </head>
 <body>
   <main class="page">
@@ -454,6 +454,7 @@ RUIN：0
           <p id="wrPeriodStatus" class="module-note" role="status"></p>
           <div class="actions"><button id="loadWeeklyRecord" type="button" disabled>载入此周期的周复盘</button></div>
           <p id="loadWeeklyHint" class="module-note"></p>
+          <label class="inline"><input id="weeklyTargetOnly" type="checkbox"> 选择时只指定保存目标，保留当前输入</label>
           <label>从已保存的周复盘中选择
             <select id="savedWeeklyPicker" disabled><option value="">暂无已保存的周复盘</option></select>
           </label>
@@ -711,6 +712,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v85.js" defer></script>
+  <script src="./app-v86.js" defer></script>
 </body>
 </html>

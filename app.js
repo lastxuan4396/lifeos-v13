@@ -1,4 +1,4 @@
-// lifeos-shell-v85
+// lifeos-shell-v86
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -706,7 +706,7 @@ function bindEvents() {
         wrScoreTouched.add(event.target.name);
         document.getElementById("wrAutofillStatus").textContent = "指标已手动调整；重新带入时请核对日期和周期。";
       }
-      if (event.target.id !== "savedWeeklyPicker") saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+      if (!["savedWeeklyPicker", "weeklyTargetOnly"].includes(event.target.id)) saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
     }));
   }
   el.wrWeekRange?.addEventListener("input", () => {
@@ -720,7 +720,11 @@ function bindEvents() {
   document.getElementById("savedWeeklyPicker")?.addEventListener("change", (event) => {
     event.stopPropagation();
     const option = event.currentTarget.selectedOptions[0];
-    if (option?.value) loadWeeklyRecord(null, Number(option.value) - 1, option.dataset.signature);
+    if (option?.value) {
+      const index = Number(option.value) - 1;
+      if (document.getElementById("weeklyTargetOnly").checked) selectWeeklySaveTarget(index, option.dataset.signature);
+      else loadWeeklyRecord(null, index, option.dataset.signature);
+    }
     event.currentTarget.value = "";
   });
 
@@ -1273,7 +1277,7 @@ function onWrSubmit(event) {
   }
   if (existing) {
     const others = matches.length > 1 ? "其他同日期记录会保留。\n" : "";
-    if (!confirm(`已有周复盘：${existing.weekRange}。继续将覆盖这条记录。\n${others}是否继续？`)) return;
+    if (!confirm(`已有周复盘：${existing.weekRange}\n最有效动作：${shortenIntentText(existing.bestAction, 50) || "未填写"}\n当前列表第 ${entries.indexOf(existing) + 1} 条；继续将覆盖这条记录。\n${others}是否继续？`)) return;
     data.weekRange = existing.weekRange;
     el.wrWeekRange.value = existing.weekRange;
   }
@@ -1357,6 +1361,25 @@ function loadWeeklyRecord(period, chosenIndex = null, signature = null) {
   saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
   document.getElementById("wrOutputPending").classList.toggle("hidden", !latestWrOutputText || buildWrOutput(getWrData()) === latestWrOutputText);
   renderWeeklyAvailability();
+}
+
+function selectWeeklySaveTarget(index, signature) {
+  const entries = loadCollection(WR_STORAGE_KEY);
+  const record = entries[index];
+  const status = document.getElementById("wrPeriodStatus");
+  if (!record || JSON.stringify(record) !== signature) {
+    selectedWeeklyRecord = null;
+    renderWeeklyAvailability();
+    status.textContent = "记录已变化，请重新选择；当前输入未更改。";
+    return;
+  }
+  if (record.weekRange !== el.wrWeekRange.value.trim()) {
+    selectedWeeklyRecord = null;
+    status.textContent = "所选记录的周期与当前输入不完全相同；请先核对并填写相同的周期。当前输入未更改。";
+    return;
+  }
+  selectedWeeklyRecord = {index, signature, weekRange: record.weekRange};
+  status.textContent = `已指定保存目标：${record.weekRange} · ${shortenIntentText(record.bestAction, 50) || "未填写动作"} · 第 ${index + 1} 条。当前输入未更改；保存时会再次确认。`;
 }
 
 function onWrAutofill() {
