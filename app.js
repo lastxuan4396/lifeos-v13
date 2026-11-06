@@ -1,4 +1,4 @@
-// lifeos-shell-v50
+// lifeos-shell-v51
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1814,10 +1814,17 @@ async function onCopyMacBridgeCmd() {
   await copyWithFeedback(cmd, el.copyMacBridgeCmd, "复制 Mac 自动采集命令");
 }
 
+function mayReplaceField(input, nextValue, label, replaceable = []) {
+  const current = input.value.trim();
+  if (!current || current === nextValue.trim() || replaceable.includes(current)) return true;
+  return confirm(`${label}已有内容，继续会替换它。是否继续？`);
+}
+
 function onIntentDefault() {
   if (!el.intent) {
     return;
   }
+  if (!mayReplaceField(el.intent, "", "明日意图")) return;
   el.intent.value = "";
   flashButton(el.intentDefault, "已切默认B");
   renderIntentAssist();
@@ -1837,6 +1844,7 @@ function onIntentCarry() {
   }
 
   const carryText = buildCarryIntent(previousEntry);
+  if (!mayReplaceField(el.intent, carryText, "明日意图")) return;
   el.intent.value = carryText;
   flashButton(el.intentCarry, "已沿用");
   renderIntentAssist();
@@ -1853,6 +1861,8 @@ function onIntentVoice() {
     alert("当前浏览器不支持语音输入。可改用“沿用昨天”或“默认B”。");
     return;
   }
+
+  if (el.intent.value.trim() && !confirm("语音识别结果会替换现有明日意图。是否继续？")) return;
 
   const rec = new SpeechRecognition();
   rec.lang = "zh-CN";
@@ -1972,9 +1982,11 @@ function onBehaviorFromYesterdayB() {
   }
 
   const firstStep = getPrimaryBStep(previousEntry);
-  el.behavior.value = firstStep
+  const value = firstStep
     ? `执行昨日B：${firstStep}`
     : `继续昨天这块：${shortenIntentText(previousEntry.behavior || previousEntry.result || "最小动作", 28)}`;
+  if (!mayReplaceField(el.behavior, value, "行为")) return;
+  el.behavior.value = value;
   flashButton(el.behaviorFromYesterdayB, "已填行为");
   renderIntentAssist();
   renderEngineSignal();
@@ -1985,9 +1997,12 @@ function onResultDoneMinimal() {
     return;
   }
 
-  el.result.value = shouldUseRecoveryLanguage(getFormData())
+  const value = shouldUseRecoveryLanguage(getFormData())
     ? "完成恢复版最小动作，无加码"
     : "完成最小动作，推进了一小块";
+  const presets = ["完成恢复版最小动作，无加码", "完成最小动作，推进了一小块", "只完成启动动作，但没有断更"];
+  if (!mayReplaceField(el.result, value, "结果", presets)) return;
+  el.result.value = value;
   flashButton(el.resultDoneMinimal, "已填结果");
   renderIntentAssist();
   renderEngineSignal();
@@ -1998,7 +2013,10 @@ function onResultStartedMinimal() {
     return;
   }
 
-  el.result.value = "只完成启动动作，但没有断更";
+  const value = "只完成启动动作，但没有断更";
+  const presets = ["完成恢复版最小动作，无加码", "完成最小动作，推进了一小块", value];
+  if (!mayReplaceField(el.result, value, "结果", presets)) return;
+  el.result.value = value;
   flashButton(el.resultStartedMinimal, "已填结果");
   renderIntentAssist();
   renderEngineSignal();
