@@ -1,4 +1,4 @@
-// lifeos-shell-v18
+// lifeos-shell-v19
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -308,7 +308,7 @@ function bindEvents() {
     el.form.addEventListener("change", saveDailyDraft);
     el.form.addEventListener("click", (event) => {
       const button = event.target.closest("button[type='button']");
-      if (button && button !== el.quickZeroDay && button.id !== "loadDailyRecord") setTimeout(saveDailyDraft, 0);
+      if (button && button !== el.quickZeroDay && button.id !== "loadDailyRecord" && button.id !== "discardDailyDraft") setTimeout(saveDailyDraft, 0);
     });
   }
 
@@ -318,6 +318,7 @@ function bindEvents() {
     details.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   document.getElementById("loadDailyRecord")?.addEventListener("click", () => loadDailyRecord(el.date.value));
+  document.getElementById("discardDailyDraft")?.addEventListener("click", discardDailyDraft);
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
   });
@@ -645,6 +646,26 @@ function saveDailyDraft() {
     document.getElementById("draftStatus").textContent = "草稿保存失败，请检查浏览器存储空间或权限。";
     return false;
   }
+}
+
+function discardDailyDraft() {
+  if (!confirm("将清空当前表单并放弃未提交的每日草稿。已保存的记录不会删除。是否继续？")) return;
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    document.getElementById("draftStatus").textContent = "无法清除草稿，请检查浏览器存储权限。";
+    return;
+  }
+  el.form.reset();
+  el.date.value = localDateISO(new Date());
+  toggleRuinCodes();
+  renderDailyRecordAvailability();
+  renderYesterdayBContext();
+  renderQuickFillCard();
+  renderIntentAssist();
+  renderEngineSignal();
+  renderSleepRuinAssist();
+  document.getElementById("draftStatus").textContent = "未提交内容已清空，已保存的记录不受影响。";
 }
 
 function restoreDailyDraft() {
