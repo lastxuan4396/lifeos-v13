@@ -1,4 +1,4 @@
-// lifeos-shell-v88
+// lifeos-shell-v89
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2181,10 +2181,9 @@ function mergeLocalAndCloud(localPayload, cloudPayload) {
     ensureArray(cloud?.weeklyReviews)
   ).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
-  const mergedPatches = mergeByKey(
+  const mergedPatches = mergeAppendOnlyRecords(
     ensureArray(local.systemPatches),
-    ensureArray(cloud?.systemPatches),
-    (item) => `${item?.startDate || ""}|${item?.fix || ""}|${item?.createdAt || ""}`
+    ensureArray(cloud?.systemPatches)
   ).sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
 
   const appleSyncMeta = pickNewestMeta(local.appleSyncMeta, cloud?.appleSyncMeta);
@@ -2208,6 +2207,23 @@ function mergeLocalAndCloud(localPayload, cloudPayload) {
 
 function weeklySyncKey(item) {
   return String(item?.weekRange || item?.createdAt || JSON.stringify(item));
+}
+
+function mergeAppendOnlyRecords(localList, cloudList) {
+  const merged = localList.slice();
+  const localCounts = new Map();
+  const cloudCounts = new Map();
+  for (const record of localList) {
+    const signature = JSON.stringify(record);
+    localCounts.set(signature, (localCounts.get(signature) || 0) + 1);
+  }
+  for (const record of cloudList) {
+    const signature = JSON.stringify(record);
+    const count = (cloudCounts.get(signature) || 0) + 1;
+    cloudCounts.set(signature, count);
+    if (count > (localCounts.get(signature) || 0)) merged.push(record);
+  }
+  return merged;
 }
 
 function hasDuplicateWeeklyKeys(records) {
@@ -2237,19 +2253,7 @@ function mergeWeeklyPreservingDuplicates(localList, cloudList) {
     }
     // For ambiguous duplicate keys, preserve the greatest observed number of
     // each exact record. A changed copy remains alongside the original.
-    const counts = new Map();
-    for (const record of group.local) {
-      const signature = JSON.stringify(record);
-      counts.set(signature, (counts.get(signature) || 0) + 1);
-      merged.push(record);
-    }
-    const cloudCounts = new Map();
-    for (const record of group.cloud) {
-      const signature = JSON.stringify(record);
-      const count = (cloudCounts.get(signature) || 0) + 1;
-      cloudCounts.set(signature, count);
-      if (count > (counts.get(signature) || 0)) merged.push(record);
-    }
+    merged.push(...mergeAppendOnlyRecords(group.local, group.cloud));
   }
   return merged;
 }
