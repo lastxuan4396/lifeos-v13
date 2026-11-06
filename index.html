@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v47 -->
+<!-- lifeos-shell-v48 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v47.css">
+  <link rel="stylesheet" href="./styles-v48.css">
 </head>
 <body>
   <main class="page">
@@ -145,6 +145,14 @@ RUIN：0
         </div>
         <form id="dlForm" autocomplete="off">
           <p id="draftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
+          <div id="dailyDraftConflict" class="hint-card hidden" role="status">
+            <strong>另一标签页更新了每日草稿</strong>
+            <p class="hint-copy">当前页面的内容暂未覆盖另一份草稿。请选择保留本页内容，或载入另一份草稿。</p>
+            <div class="actions">
+              <button id="keepThisDailyDraft" type="button">保留本页内容</button>
+              <button id="loadOtherDailyDraft" type="button">载入另一份草稿</button>
+            </div>
+          </div>
           <div class="actions"><button id="discardDailyDraft" type="button">清空未提交内容</button></div>
           <label>
             日期
@@ -639,6 +647,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v47.js" defer></script>
+  <script src="./app-v48.js" defer></script>
 </body>
 </html>

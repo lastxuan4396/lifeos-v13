@@ -1,4 +1,4 @@
-// lifeos-shell-v47
+// lifeos-shell-v48
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -61,6 +61,7 @@ let latestDojoOutputText = "";
 let latestDojoStarterText = "";
 let syncQueue = Promise.resolve();
 let historyLimit = 12;
+let dailyDraftSnapshot = null;
 
 const el = {
   modeQuick: document.getElementById("modeQuick"),
@@ -364,8 +365,12 @@ function bindEvents() {
   });
   document.getElementById("applyPendingBridge")?.addEventListener("click", () => {
     try {
-      if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
+      const current = localStorage.getItem(DRAFT_KEY);
+      if (current !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
+      if (current !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
+      if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
       localStorage.removeItem(DRAFT_KEY);
+      dailyDraftSnapshot = null;
       window.location.reload();
     } catch (error) {
       document.getElementById("draftStatus").textContent = "无法清除草稿，请检查浏览器存储权限。";
@@ -385,7 +390,7 @@ function bindEvents() {
     el.form.addEventListener("change", saveDailyDraft);
     el.form.addEventListener("click", (event) => {
       const button = event.target.closest("button[type='button']");
-      if (button && button !== el.quickZeroDay && !["loadDailyRecord", "discardDailyDraft", "useTodayDate"].includes(button.id)) setTimeout(saveDailyDraft, 0);
+      if (button && button !== el.quickZeroDay && !["loadDailyRecord", "discardDailyDraft", "useTodayDate", "keepThisDailyDraft", "loadOtherDailyDraft"].includes(button.id)) setTimeout(saveDailyDraft, 0);
     });
   }
 
@@ -404,6 +409,13 @@ function bindEvents() {
     document.getElementById("dateSwitchHint").textContent = "日期已切换到今天，请重新核对表单内容。";
   });
   document.getElementById("discardDailyDraft")?.addEventListener("click", discardDailyDraft);
+  document.getElementById("keepThisDailyDraft")?.addEventListener("click", () => {
+    if (confirm("将用当前页面的内容覆盖另一标签页保存的每日草稿。是否继续？")) saveDailyDraft(true);
+  });
+  document.getElementById("loadOtherDailyDraft")?.addEventListener("click", loadOtherDailyDraft);
+  window.addEventListener("storage", (event) => {
+    if ((event.key === DRAFT_KEY || event.key === null) && event.newValue !== dailyDraftSnapshot) showDailyDraftConflict();
+  });
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
   });
@@ -749,13 +761,25 @@ function loadDailyRecord(date, focusForm = false) {
   }
 }
 
-function saveDailyDraft() {
+function showDailyDraftConflict() {
+  document.getElementById("dailyDraftConflict").classList.remove("hidden");
+  document.getElementById("draftStatus").textContent = "当前页面的草稿尚未保存，请先处理另一标签页的更改。";
+}
+
+function saveDailyDraft(allowOverwrite = false) {
   document.getElementById("outputPending").classList.toggle("hidden", !latestOutputText);
   const fields = Array.from(el.form.elements)
     .filter((field) => field.name && !field.disabled && field.type !== "file")
     .map((field) => ({ name: field.name, type: field.type, value: field.value, checked: field.checked }));
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(fields));
+    if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot && allowOverwrite !== true) {
+      showDailyDraftConflict();
+      return false;
+    }
+    const next = JSON.stringify(fields);
+    localStorage.setItem(DRAFT_KEY, next);
+    dailyDraftSnapshot = next;
+    document.getElementById("dailyDraftConflict").classList.add("hidden");
     document.getElementById("draftStatus").textContent = "草稿已保存在当前浏览器";
     return true;
   } catch (error) {
@@ -765,9 +789,17 @@ function saveDailyDraft() {
 }
 
 function discardDailyDraft() {
+  try {
+    if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
+  } catch {
+    document.getElementById("draftStatus").textContent = "无法读取草稿，请检查浏览器存储权限。";
+    return;
+  }
   if (!confirm("将清空当前表单并放弃未提交的每日草稿。已保存的记录不会删除。是否继续？")) return;
   try {
+    if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
     localStorage.removeItem(DRAFT_KEY);
+    dailyDraftSnapshot = null;
   } catch {
     document.getElementById("draftStatus").textContent = "无法清除草稿，请检查浏览器存储权限。";
     return;
@@ -789,6 +821,7 @@ function discardDailyDraft() {
 function restoreDailyDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
+    dailyDraftSnapshot = raw;
     if (raw === null) return false;
     const fields = JSON.parse(raw);
     if (!Array.isArray(fields)) throw new Error("Invalid draft");
@@ -808,9 +841,39 @@ function restoreDailyDraft() {
   }
 }
 
+function loadOtherDailyDraft() {
+  try {
+    if (!confirm("将放弃当前页面尚未保存的内容，并载入浏览器中最新的每日草稿。是否继续？")) return;
+    const raw = localStorage.getItem(DRAFT_KEY);
+    const fields = raw === null ? null : JSON.parse(raw);
+    if (fields !== null && (!Array.isArray(fields) || fields.some((item) => !item || typeof item !== "object" || Array.isArray(item)))) throw new Error("Invalid draft");
+    el.form.reset();
+    el.date.value = localDateISO(new Date());
+    restoreDailyDraft();
+    toggleRuinCodes();
+    renderAll(loadEntries());
+    renderYesterdayBContext();
+    renderQuickFillCard();
+    renderIntentAssist();
+    renderEngineSignal();
+    renderSleepRuinAssist();
+    document.getElementById("dailyDraftConflict").classList.add("hidden");
+    document.getElementById("draftStatus").textContent = raw === null ? "另一标签页已清除草稿，当前表单已重置。" : "已载入浏览器中最新的每日草稿。";
+  } catch {
+    document.getElementById("draftStatus").textContent = "载入未完成，请检查当前表单；已保存的记录不受影响。";
+  }
+}
+
 function clearDailyDraft() {
   try {
+    if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot) {
+      showDailyDraftConflict();
+      document.getElementById("draftStatus").textContent = "记录已保存，另一标签页的草稿仍保留。";
+      return;
+    }
     localStorage.removeItem(DRAFT_KEY);
+    dailyDraftSnapshot = null;
+    document.getElementById("dailyDraftConflict").classList.add("hidden");
     document.getElementById("draftStatus").textContent = "记录已保存，草稿已清除。";
   } catch (error) {
     document.getElementById("draftStatus").textContent = "记录已保存，但草稿清除失败。";
