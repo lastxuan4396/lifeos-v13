@@ -1,4 +1,4 @@
-// lifeos-shell-v74
+// lifeos-shell-v75
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -422,7 +422,19 @@ function bindEvents() {
         if (parent.tagName === "DETAILS" && !parent.open) { parent.open = true; opened = true; }
         parent = parent.parentElement;
       }
-      if (opened) document.getElementById("dailyValidationStatus").textContent = "有可选项目需要检查，已展开对应区域。";
+      if (opened) {
+        document.getElementById("dailyValidationStatus").textContent = "有可选项目需要检查，已展开对应区域。";
+        const firstInvalid = Array.from(el.form.elements).find((field) => field.willValidate && !field.validity.valid);
+        if (firstInvalid === event.target) {
+          event.preventDefault();
+          requestAnimationFrame(() => {
+            if (event.target.isConnected && !event.target.validity.valid) {
+              event.target.focus();
+              event.target.reportValidity();
+            }
+          });
+        }
+      }
     }, true);
     el.form.addEventListener("input", () => { document.getElementById("dailyValidationStatus").textContent = ""; });
     el.form.addEventListener("input", saveDailyDraft);
