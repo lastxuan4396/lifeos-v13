@@ -1,4 +1,4 @@
-// lifeos-shell-v72
+// lifeos-shell-v73
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -467,6 +467,7 @@ function bindEvents() {
   document.getElementById("loadPatchDraft")?.addEventListener("click", () => loadOtherWorkflowDraft(PATCH_DRAFT_KEY));
   document.getElementById("keepDojoDraft")?.addEventListener("click", () => keepWorkflowDraft(DOJO_DRAFT_KEY));
   document.getElementById("loadDojoDraft")?.addEventListener("click", () => loadOtherWorkflowDraft(DOJO_DRAFT_KEY));
+  document.getElementById("clearDojoDraft")?.addEventListener("click", clearDojoDraft);
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     const steps = document.getElementById("todayActionSteps").textContent;
     const defense = document.getElementById("todayRedDefense");
@@ -1110,6 +1111,24 @@ function keepWorkflowDraft(key) {
   const info = workflowDraftInfo(key);
   if (confirm("将用当前页面的内容覆盖另一标签页保存的草稿。是否继续？")) {
     saveWorkflowDraft(info.form, key, info.statusId, info.badgeId, true);
+  }
+}
+
+function clearDojoDraft() {
+  try {
+    if (localStorage.getItem(DOJO_DRAFT_KEY) !== workflowDraftSnapshots.get(DOJO_DRAFT_KEY)) { showWorkflowDraftConflict(DOJO_DRAFT_KEY); return; }
+    if (!confirm("清除本机保存的训练输入？页面上已生成的脚本会暂时保留。")) return;
+    if (localStorage.getItem(DOJO_DRAFT_KEY) !== workflowDraftSnapshots.get(DOJO_DRAFT_KEY)) { showWorkflowDraftConflict(DOJO_DRAFT_KEY); return; }
+    localStorage.removeItem(DOJO_DRAFT_KEY);
+    workflowDraftSnapshots.set(DOJO_DRAFT_KEY, null);
+    workflowDraftSaveFailed.delete(DOJO_DRAFT_KEY);
+    el.dojoForm.reset();
+    document.getElementById("dojoDraftConflict").classList.add("hidden");
+    document.getElementById("dojoDraftBadge").classList.add("hidden");
+    document.getElementById("dojoDraftStatus").textContent = "训练输入已清除；已生成的脚本仍在当前页面。";
+    markDojoOutputStale();
+  } catch {
+    document.getElementById("dojoDraftStatus").textContent = "无法清除训练输入，请检查浏览器存储权限；当前表单仍保留。";
   }
 }
 
