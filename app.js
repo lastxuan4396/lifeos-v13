@@ -1,4 +1,4 @@
-// lifeos-shell-v39
+// lifeos-shell-v40
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -342,6 +342,7 @@ function bindEvents() {
   });
   document.getElementById("closeCopyFallback")?.addEventListener("click", () => document.getElementById("copyFallback").close());
   document.getElementById("mergePendingBridge")?.addEventListener("click", mergePendingBridgeIntoDraft);
+  document.getElementById("finishBridgeReview")?.addEventListener("click", finishBridgeReview);
   document.getElementById("applyPendingBridge")?.addEventListener("click", () => {
     try {
       if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
@@ -2059,22 +2060,32 @@ function mergePendingBridgeIntoDraft() {
   ];
   let filled = 0;
   let kept = 0;
+  const conflicts = [];
   for (const [input, keys] of fields) {
     const value = getFirstNumericParam(params, keys);
     if (value === null || value < 0 || !input) continue;
-    if (input.value !== "") kept += 1;
+    if (input.value !== "") {
+      kept += 1;
+      if (Number(input.value) !== value) conflicts.push(`${input.closest("label")?.firstChild?.textContent.trim() || keys[0]}：表单 ${input.value}；设备 ${value}`);
+    }
     else if (setNumericInputValue(input, value)) filled += 1;
   }
   const topApp = String(params.get("topAppName") || params.get("topApp") || "").trim();
   const topMinutes = getFirstNumericParam(params, ["topAppMinutes", "topAppUsageMinutes"]);
   const sameApp = !el.topAppName.value || (topApp && topApp === el.topAppName.value);
   if (topApp && el.topAppName) {
-    if (el.topAppName.value !== "") kept += 1;
+    if (el.topAppName.value !== "") {
+      kept += 1;
+      if (el.topAppName.value !== topApp) conflicts.push(`头号应用：表单 ${el.topAppName.value}；设备 ${topApp}`);
+    }
     else if (!el.topAppMinutes.value) { el.topAppName.value = topApp; filled += 1; }
-    else kept += 1;
+    else { kept += 1; conflicts.push(`设备头号应用 ${topApp} 未填入：表单已有头号应用分钟，请一并核对。`); }
   }
   if (topMinutes !== null && topMinutes >= 0 && el.topAppMinutes) {
-    if (el.topAppMinutes.value !== "" || !sameApp || (!topApp && el.topAppName.value)) kept += 1;
+    if (el.topAppMinutes.value !== "" || !sameApp || (!topApp && el.topAppName.value)) {
+      kept += 1;
+      if (!sameApp || (!topApp && el.topAppName.value) || Number(el.topAppMinutes.value) !== topMinutes) conflicts.push(`头号应用分钟：表单 ${el.topAppMinutes.value || "（空）"}；设备 ${topMinutes}。请核对应用名称是否一致。`);
+    }
     else { el.topAppMinutes.value = String(topMinutes); filled += 1; }
   }
   if (!filled && !kept) {
@@ -2088,9 +2099,33 @@ function mergePendingBridgeIntoDraft() {
     status.textContent = "合并后的草稿保存失败，请保留此页面并检查浏览器存储；设备链接仍在。";
     return;
   }
+  document.getElementById("draftStatus").textContent = `设备数据已合并：填入 ${filled} 项，保留已填 ${kept} 项。请核对后保存记录。`;
+  if (conflicts.length) {
+    const preview = document.getElementById("bridgeConflicts");
+    preview.textContent = `以下数值不同，表单暂时保留原值。你可以参考设备值手动修改表单：\n${conflicts.join("\n")}`;
+    preview.classList.remove("hidden");
+    document.getElementById("mergePendingBridge").classList.add("hidden");
+    document.getElementById("applyPendingBridge").classList.add("hidden");
+    document.getElementById("finishBridgeReview").classList.remove("hidden");
+    status.textContent = "核对完成后点击“已核对”，再保存记录。设备链接在此之前会保留。";
+    return;
+  }
+  finishBridgeReview();
+}
+
+function finishBridgeReview() {
+  const date = getFirstDateParam(new URLSearchParams(window.location.search), ["date", "logDate"]);
+  if (!date || date !== el.date.value) {
+    document.getElementById("pendingBridgeStatus").textContent = "表单日期已改变；请切回设备数据日期后再完成核对。";
+    return;
+  }
+  if (!saveDailyDraft()) {
+    document.getElementById("pendingBridgeStatus").textContent = "草稿保存失败，请保留页面并检查浏览器存储；设备链接仍在。";
+    return;
+  }
   if (window.history?.replaceState) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
   document.getElementById("pendingBridge").classList.add("hidden");
-  document.getElementById("draftStatus").textContent = `设备数据已合并：填入 ${filled} 项，保留已填 ${kept} 项。请核对后保存记录。`;
+  document.getElementById("draftStatus").textContent = "设备数据已核对并保存为草稿，请确认后保存记录。";
 }
 
 function applyAppleAutofillFromUrl() {
