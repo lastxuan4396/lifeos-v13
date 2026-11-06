@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v17 -->
+<!-- lifeos-shell-v18 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -582,6 +582,16 @@ RUIN：0
       </details>
     </section>
   </main>
+
+  <dialog id="copyFallback" aria-labelledby="copyFallbackTitle">
+    <h2 id="copyFallbackTitle">手动复制</h2>
+    <p>浏览器没有允许自动复制。请长按或选择下方内容，再复制。</p>
+    <textarea id="copyFallbackText" readonly rows="10" aria-label="待复制的内容"></textarea>
+    <div class="actions">
+      <button id="selectCopyFallback" type="button">选择全部</button>
+      <button id="closeCopyFallback" type="button">关闭</button>
+    </div>
+  </dialog>
 
   <template id="historyItemTpl">
     <article class="history-item">

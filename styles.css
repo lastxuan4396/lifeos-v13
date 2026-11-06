@@ -643,6 +643,18 @@ button:hover {
   display: none;
 }
 
+#copyFallback {
+  width: min(92vw, 640px);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+  color: var(--ink);
+  background: var(--card);
+}
+
+#copyFallback::backdrop { background: rgba(0, 0, 0, 0.45); }
+#copyFallbackText { width: 100%; box-sizing: border-box; font: inherit; }
+
 @media (max-width: 1024px) {
   .grid,
   .bottom-grid {

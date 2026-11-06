@@ -1,4 +1,4 @@
-// lifeos-shell-v17
+// lifeos-shell-v18
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -279,6 +279,12 @@ function setUIMode(mode) {
 }
 
 function bindEvents() {
+  document.getElementById("selectCopyFallback")?.addEventListener("click", () => {
+    const field = document.getElementById("copyFallbackText");
+    field.focus();
+    field.select();
+  });
+  document.getElementById("closeCopyFallback")?.addEventListener("click", () => document.getElementById("copyFallback").close());
   document.getElementById("applyPendingBridge")?.addEventListener("click", () => {
     try {
       if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
@@ -3485,10 +3491,12 @@ async function copyWithFeedback(text, button, fallbackLabel) {
       button.textContent = origin;
     }, 1200);
   } catch {
-    button.textContent = "复制失败";
-    setTimeout(() => {
-      button.textContent = fallbackLabel;
-    }, 1200);
+    const dialog = document.getElementById("copyFallback");
+    const field = document.getElementById("copyFallbackText");
+    field.value = text;
+    if (!dialog.open) dialog.showModal();
+    field.focus();
+    field.select();
   }
 }
 
