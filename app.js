@@ -1,4 +1,4 @@
-// lifeos-shell-v64
+// lifeos-shell-v65
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1696,12 +1696,17 @@ function onSyncSaveSettings() {
 }
 
 async function onSyncInitCloud() {
+  const button = document.getElementById("syncInit");
+  if (button.disabled) return;
   const settings = getSyncSettingsFromForm();
   if (!settings.token) {
     alert("先填写 GitHub Token。");
     return;
   }
+  if (settings.gistId && !confirm(`当前已填写云仓 ${settings.gistId}。初始化会创建新的云仓并在本机改用新 ID；原云仓仍会保留。是否继续？`)) return;
 
+  button.disabled = true;
+  renderSyncStatus("正在创建云仓，请稍候，不要重复操作。");
   try {
     const payload = buildBackupPayload();
     const gistId = await createCloudGist(settings.token, payload);
@@ -1711,6 +1716,8 @@ async function onSyncInitCloud() {
     renderSyncStatus(`初始化完成：已创建云仓\nGist ID：${gistId}\n现在可点“同步现在（先拉后推）”。`);
   } catch (error) {
     renderSyncStatus(`初始化失败：${String(error?.message || error)}`);
+  } finally {
+    button.disabled = false;
   }
 }
 

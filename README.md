@@ -92,10 +92,12 @@ python3 scripts/macos_usage_bridge.py --open
 
 网页内置 `多端云同步（GitHub Gist）`：
 
-1. 填 GitHub token（Gists 读写）
+1. 填 GitHub token（Fine-grained token 的账户权限中将 Gists 设为读写；[GitHub 官方说明](https://docs.github.com/en/rest/gists/gists#create-a-gist)）
 2. 点 `初始化云仓`
 3. 点 `同步现在（先拉后推）`
 4. 可选：勾选 `每次保存后自动同步`
+
+初始化云仓时，创建请求完成前按钮会暂时不可用；已有 Gist ID 时，创建新的云仓前会先确认，原云仓仍保留。
 
 同步会合并不同日期的记录；同一天的记录按保存时间选择较新版本。上传期间如果本地数据再次改变，网页会提示重新同步。支持 Web Locks 的浏览器会让同一网站的多个标签页轮流同步；不支持时请避免同时同步。不同设备之间仍请先在一台设备同步完成，再在另一台同步，避免并发覆盖；重要数据建议定期导出 JSON。同步令牌保存在本机浏览器中，请只在可信设备上使用。
 
