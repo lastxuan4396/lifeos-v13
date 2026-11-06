@@ -1,4 +1,4 @@
-// lifeos-shell-v60
+// lifeos-shell-v61
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -654,7 +654,12 @@ function bindEvents() {
       if (event.target.id !== "savedWeeklyPicker") saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
     }));
   }
-  el.wrWeekRange?.addEventListener("input", renderWeeklyAvailability);
+  el.wrWeekRange?.addEventListener("input", () => {
+    renderWeeklyAvailability();
+    document.getElementById("wrPeriodStatus").textContent = "周期已更改；现有复盘内容、指标、实验和结果不会自动更新，请核对或载入此周期的记录。";
+  });
+  document.getElementById("wrPreviousWeek")?.addEventListener("click", () => shiftWeeklyPeriod(-7));
+  document.getElementById("wrNextWeek")?.addEventListener("click", () => shiftWeeklyPeriod(7));
   document.getElementById("loadWeeklyRecord")?.addEventListener("click", () => loadWeeklyRecord(el.wrWeekRange.value.trim()));
   document.getElementById("savedWeeklyPicker")?.addEventListener("change", (event) => {
     event.stopPropagation();
@@ -1196,6 +1201,7 @@ function loadWeeklyRecord(period) {
   }
   wrScoreTouched.clear();
   for (const field of el.wrForm.elements) if (WR_SCORE_FIELDS.has(field.name)) wrScoreTouched.add(field.name);
+  document.getElementById("wrPeriodStatus").textContent = "已载入此周期的周复盘，请核对内容。";
   document.getElementById("wrAutofillStatus").textContent = "已载入保存的周复盘；重新带入近 7 天数据前请核对周期。";
   latestWrOutputText = typeof record.outputText === "string" ? record.outputText : "";
   setModuleOutput(el.wrOutput, latestWrOutputText, "此周期尚无保存的周复盘结果。");
@@ -1215,6 +1221,18 @@ function onWrPeriodAutofill() {
     return;
   }
   applyWeeklyAutofill(period, "复盘周期");
+}
+
+function shiftWeeklyPeriod(days) {
+  const period = parseWeeklyPeriod(el.wrWeekRange.value);
+  if (!period) {
+    document.getElementById("wrPeriodStatus").textContent = "请先填写连续 7 天的日期范围，例如 2026-11-02 ~ 2026-11-08，再切换周期。";
+    return;
+  }
+  const dates = [shiftDateISO(period.start, days), shiftDateISO(period.end, days)];
+  let index = 0;
+  el.wrWeekRange.value = el.wrWeekRange.value.replace(/\d{4}-\d{2}-\d{2}/g, () => dates[index++]);
+  el.wrWeekRange.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function parseWeeklyPeriod(value) {

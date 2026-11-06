@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v60 -->
+<!-- lifeos-shell-v61 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v60.css">
+  <link rel="stylesheet" href="./styles-v61.css">
 </head>
 <body>
   <main class="page">
@@ -438,6 +438,8 @@ RUIN：0
             <input id="wrWeekRange" name="wrWeekRange" type="text" placeholder="Week of 2026-03-09 ~ 2026-03-15" required>
           </label>
           <p class="module-note">按周期带入时，请填写连续 7 天，如 2026-11-02 ~ 2026-11-08。</p>
+          <div class="actions"><button id="wrPreviousWeek" type="button">上一周</button><button id="wrNextWeek" type="button">下一周</button></div>
+          <p id="wrPeriodStatus" class="module-note" role="status"></p>
           <div class="actions"><button id="loadWeeklyRecord" type="button" disabled>载入此周期的周复盘</button></div>
           <p id="loadWeeklyHint" class="module-note"></p>
           <label>从已保存的周复盘中选择
@@ -679,6 +681,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v60.js" defer></script>
+  <script src="./app-v61.js" defer></script>
 </body>
 </html>
