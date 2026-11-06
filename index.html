@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v43 -->
+<!-- lifeos-shell-v44 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v43.css">
+  <link rel="stylesheet" href="./styles-v44.css">
 </head>
 <body>
   <main class="page">
@@ -139,6 +139,7 @@ RUIN：0
           <button id="mergePendingBridge" type="button">合并到草稿的空白项目</button>
           <button id="applyPendingBridge" type="button">继续处理设备数据</button>
           <pre id="bridgeConflicts" class="module-output hidden"></pre>
+          <button id="reviewBridgeFields" type="button" class="hidden">查看并修改指标</button>
           <button id="finishBridgeReview" type="button" class="hidden">已核对，保留表单当前值</button>
           <p id="pendingBridgeStatus" class="module-note" role="status"></p>
         </div>
@@ -263,7 +264,7 @@ RUIN：0
             </ul>
           </details>
 
-          <details>
+          <details id="optionalMetrics">
             <summary>可选指标（可自动从 Apple 快捷指令填充）</summary>
             <div class="optional-grid">
               <label>
@@ -315,6 +316,7 @@ RUIN：0
                 <input id="distanceKm" name="distanceKm" type="number" min="0" step="0.1" placeholder="5.2">
               </label>
             </div>
+            <button id="finishBridgeReviewAtMetrics" type="button" class="hidden">已核对设备数据</button>
             <div class="apple-sync">
               <div class="apple-sync-head">
                 <strong>Apple 自动填充</strong>
@@ -637,6 +639,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v43.js" defer></script>
+  <script src="./app-v44.js" defer></script>
 </body>
 </html>

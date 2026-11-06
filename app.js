@@ -1,4 +1,4 @@
-// lifeos-shell-v43
+// lifeos-shell-v44
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -355,6 +355,13 @@ function bindEvents() {
   document.getElementById("closeCopyFallback")?.addEventListener("click", () => document.getElementById("copyFallback").close());
   document.getElementById("mergePendingBridge")?.addEventListener("click", mergePendingBridgeIntoDraft);
   document.getElementById("finishBridgeReview")?.addEventListener("click", finishBridgeReview);
+  document.getElementById("finishBridgeReviewAtMetrics")?.addEventListener("click", finishBridgeReview);
+  document.getElementById("reviewBridgeFields")?.addEventListener("click", () => {
+    document.getElementById("optionalMetrics").open = true;
+    const field = document.getElementById(document.getElementById("reviewBridgeFields").dataset.firstField || "sleepHours");
+    field?.focus({ preventScroll: true });
+    field?.scrollIntoView({ block: "center", behavior: "smooth" });
+  });
   document.getElementById("applyPendingBridge")?.addEventListener("click", () => {
     try {
       if (localStorage.getItem(DRAFT_KEY) !== null && !confirm("当前草稿尚未提交。继续将放弃这份草稿并重新载入设备数据，是否继续？")) return;
@@ -2073,12 +2080,16 @@ function mergePendingBridgeIntoDraft() {
   let filled = 0;
   let kept = 0;
   const conflicts = [];
+  let firstConflictField = "";
   for (const [input, keys] of fields) {
     const value = getFirstNumericParam(params, keys);
     if (value === null || value < 0 || !input) continue;
     if (input.value !== "") {
       kept += 1;
-      if (Number(input.value) !== value) conflicts.push(`${input.closest("label")?.firstChild?.textContent.trim() || keys[0]}：表单 ${input.value}；设备 ${value}`);
+      if (Number(input.value) !== value) {
+        conflicts.push(`${input.closest("label")?.firstChild?.textContent.trim() || keys[0]}：表单 ${input.value}；设备 ${value}`);
+        firstConflictField ||= input.id;
+      }
     }
     else if (setNumericInputValue(input, value)) filled += 1;
   }
@@ -2088,15 +2099,15 @@ function mergePendingBridgeIntoDraft() {
   if (topApp && el.topAppName) {
     if (el.topAppName.value !== "") {
       kept += 1;
-      if (el.topAppName.value !== topApp) conflicts.push(`头号应用：表单 ${el.topAppName.value}；设备 ${topApp}`);
+      if (el.topAppName.value !== topApp) { conflicts.push(`头号应用：表单 ${el.topAppName.value}；设备 ${topApp}`); firstConflictField ||= "topAppName"; }
     }
     else if (!el.topAppMinutes.value) { el.topAppName.value = topApp; filled += 1; }
-    else { kept += 1; conflicts.push(`设备头号应用 ${topApp} 未填入：表单已有头号应用分钟，请一并核对。`); }
+    else { kept += 1; conflicts.push(`设备头号应用 ${topApp} 未填入：表单已有头号应用分钟，请一并核对。`); firstConflictField ||= "topAppName"; }
   }
   if (topMinutes !== null && topMinutes >= 0 && el.topAppMinutes) {
     if (el.topAppMinutes.value !== "" || !sameApp || (!topApp && el.topAppName.value)) {
       kept += 1;
-      if (!sameApp || (!topApp && el.topAppName.value) || Number(el.topAppMinutes.value) !== topMinutes) conflicts.push(`头号应用分钟：表单 ${el.topAppMinutes.value || "（空）"}；设备 ${topMinutes}。请核对应用名称是否一致。`);
+      if (!sameApp || (!topApp && el.topAppName.value) || Number(el.topAppMinutes.value) !== topMinutes) { conflicts.push(`头号应用分钟：表单 ${el.topAppMinutes.value || "（空）"}；设备 ${topMinutes}。请核对应用名称是否一致。`); firstConflictField ||= "topAppMinutes"; }
     }
     else { el.topAppMinutes.value = String(topMinutes); filled += 1; }
   }
@@ -2119,6 +2130,10 @@ function mergePendingBridgeIntoDraft() {
     document.getElementById("mergePendingBridge").classList.add("hidden");
     document.getElementById("applyPendingBridge").classList.add("hidden");
     document.getElementById("finishBridgeReview").classList.remove("hidden");
+    document.getElementById("finishBridgeReviewAtMetrics").classList.remove("hidden");
+    const reviewButton = document.getElementById("reviewBridgeFields");
+    reviewButton.dataset.firstField = firstConflictField;
+    reviewButton.classList.remove("hidden");
     status.textContent = "核对完成后点击“已核对”，再保存记录。设备链接在此之前会保留。";
     return;
   }
@@ -2137,6 +2152,7 @@ function finishBridgeReview() {
   }
   if (window.history?.replaceState) window.history.replaceState({}, "", window.location.pathname + window.location.hash);
   document.getElementById("pendingBridge").classList.add("hidden");
+  document.getElementById("finishBridgeReviewAtMetrics").classList.add("hidden");
   document.getElementById("draftStatus").textContent = "设备数据已核对并保存为草稿，请确认后保存记录。";
 }
 
