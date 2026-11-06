@@ -1,4 +1,4 @@
-// lifeos-shell-v91
+// lifeos-shell-v92
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1917,14 +1917,21 @@ function renderSyncStatus(overrideMessage) {
 
   if (overrideMessage) {
     setModuleOutput(el.syncOutput, overrideMessage, "尚未配置云同步");
+    const activity = document.getElementById("syncActivity");
+    activity.textContent = overrideMessage.split("\n")[0];
+    activity.classList.remove("hidden");
     return;
   }
 
   const settings = loadSyncSettings();
   if (!settings.gistId || !settings.token) {
     setModuleOutput(el.syncOutput, "", "尚未配置云同步");
+    document.getElementById("syncActivity").classList.add("hidden");
     return;
   }
+  const activity = document.getElementById("syncActivity");
+  activity.textContent = "云同步已配置；本次打开页面后尚未确认同步结果。";
+  activity.classList.remove("hidden");
 
   const lines = [
     "云同步已配置",
@@ -2008,13 +2015,18 @@ async function maybeAutoSync(reason) {
 
 async function syncNowInternal(settings, options = {}) {
   // Queue within the tab and, where supported, serialize other tabs on this site.
+  const reason = options.reason || "同步";
+  renderSyncStatus(`${reason}：正在等待同步…`);
   const run = syncQueue.catch(() => {}).then(async () => {
-    if (!navigator.locks?.request) return performSync(settings, options);
+    if (!navigator.locks?.request) {
+      renderSyncStatus(`${reason}：正在同步…`);
+      return performSync(settings, options);
+    }
     try {
       const scopePath = new URL("./", window.location.href).pathname;
-      if (options.showStatus !== false) renderSyncStatus("正在等待同步；如果另一个标签页正在同步，会依次处理。");
+      renderSyncStatus(`${reason}：正在等待同步；如果另一个标签页正在同步，会依次处理。`);
       return await navigator.locks.request(`lifeos-sync:${scopePath}`, () => {
-        if (options.showStatus !== false) renderSyncStatus("正在同步…");
+        renderSyncStatus(`${reason}：正在同步…`);
         return performSync(settings, options);
       });
     } catch (error) {
@@ -2055,10 +2067,10 @@ async function performSync(settings, options = {}) {
     }
     showSyncNotice(false);
 
-    if (showStatus) {
+    {
       const data = merged.data || {};
       const lines = [
-        `${reason}完成`,
+        `${reason}完成（${new Date().toLocaleTimeString()}，本机时间）`,
         `DL：${ensureArray(data.dailyLogs).length} 条`,
         `WR：${ensureArray(data.weeklyReviews).length} 条`,
         `Patch：${ensureArray(data.systemPatches).length} 条`
