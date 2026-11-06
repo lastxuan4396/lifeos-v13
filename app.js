@@ -1,4 +1,4 @@
-// lifeos-shell-v95
+// lifeos-shell-v96
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -864,6 +864,7 @@ function bindEvents() {
   if (el.syncSave) {
     el.syncSave.addEventListener("click", onSyncSaveSettings);
   }
+  document.getElementById("syncClear")?.addEventListener("click", clearLocalSyncSettings);
 
   if (el.syncInit) {
     el.syncInit.addEventListener("click", onSyncInitCloud);
@@ -1981,6 +1982,19 @@ function onSyncSaveSettings() {
   renderSyncStatus(lines.join("\n"));
 }
 
+function clearLocalSyncSettings() {
+  if (!confirm("将清除此浏览器保存的 Token、Gist ID 和自动同步设置，不会删除云仓或本地记录。已经开始的网络请求可能仍会完成。是否继续？")) return;
+  try {
+    localStorage.removeItem(SYNC_SETTINGS_KEY);
+    el.syncToken.value = "";
+    el.syncGistId.value = "";
+    el.syncAuto.checked = false;
+    renderSyncStatus("已清除本机同步配置；云仓和本地记录仍保留。");
+  } catch {
+    renderSyncStatus("未能清除同步配置；请检查浏览器存储权限。");
+  }
+}
+
 async function onSyncInitCloud() {
   const button = document.getElementById("syncInit");
   if (button.disabled) return;
@@ -1991,11 +2005,26 @@ async function onSyncInitCloud() {
   }
   if (settings.gistId && !confirm(`当前已填写云仓 ${settings.gistId}。初始化会创建新的云仓并在本机改用新 ID；原云仓仍会保留。是否继续？`)) return;
 
+  let initialStored;
+  try { initialStored = localStorage.getItem(SYNC_SETTINGS_KEY); }
+  catch { renderSyncStatus("初始化未开始：无法读取本机同步配置。"); return; }
+  const initialForm = JSON.stringify([el.syncToken.value, el.syncGistId.value, el.syncAuto.checked]);
+
   button.disabled = true;
   renderSyncStatus("正在创建云仓，请稍候，不要重复操作。");
   try {
     const payload = buildBackupPayload();
     const gistId = await createCloudGist(settings.token, payload);
+    let currentStored;
+    try { currentStored = localStorage.getItem(SYNC_SETTINGS_KEY); }
+    catch {
+      renderSyncStatus(`云仓已创建，但无法读取本机配置，未切换设置。\n新 Gist ID：${gistId}\n请先记下此 ID，再检查存储权限。`);
+      return;
+    }
+    if (currentStored !== initialStored || JSON.stringify([el.syncToken.value, el.syncGistId.value, el.syncAuto.checked]) !== initialForm) {
+      renderSyncStatus(`云仓已创建，但等待期间同步配置发生变化，因此未切换本机设置。\n新 Gist ID：${gistId}\n请先记下 ID，再决定是否使用此云仓。`);
+      return;
+    }
     const next = { ...settings, gistId };
     el.syncGistId.value = gistId;
     try {
