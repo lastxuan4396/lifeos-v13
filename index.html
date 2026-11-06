@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v22 -->
+<!-- lifeos-shell-v23 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -135,7 +135,11 @@ RUIN：0
             日期
             <input id="date" name="date" type="date" required>
           </label>
-          <div class="actions"><button id="loadDailyRecord" type="button" disabled>载入所选日期的记录</button></div>
+          <div class="actions">
+            <button id="useTodayDate" type="button" disabled>切换到今天</button>
+            <button id="loadDailyRecord" type="button" disabled>载入所选日期的记录</button>
+          </div>
+          <p id="dateSwitchHint" class="module-note" role="status"></p>
           <p id="loadDailyHint" class="module-note">所选日期暂无保存的记录。</p>
 
           <label>

@@ -1,4 +1,4 @@
-// lifeos-shell-v22
+// lifeos-shell-v23
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -308,7 +308,7 @@ function bindEvents() {
     el.form.addEventListener("change", saveDailyDraft);
     el.form.addEventListener("click", (event) => {
       const button = event.target.closest("button[type='button']");
-      if (button && button !== el.quickZeroDay && button.id !== "loadDailyRecord" && button.id !== "discardDailyDraft") setTimeout(saveDailyDraft, 0);
+      if (button && button !== el.quickZeroDay && !["loadDailyRecord", "discardDailyDraft", "useTodayDate"].includes(button.id)) setTimeout(saveDailyDraft, 0);
     });
   }
 
@@ -318,13 +318,24 @@ function bindEvents() {
     details.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   document.getElementById("loadDailyRecord")?.addEventListener("click", () => loadDailyRecord(el.date.value));
+  document.getElementById("useTodayDate")?.addEventListener("click", () => {
+    const today = localDateISO(new Date());
+    if (el.date.value === today) return;
+    if (!confirm("切换日期会保留当前表单内容。请确认这些内容适用于今天，并重新核对昨日 B、红灯和指标。是否继续？")) return;
+    el.date.value = today;
+    el.date.dispatchEvent(new Event("change", { bubbles: true }));
+    document.getElementById("dateSwitchHint").textContent = "日期已切换到今天，请重新核对表单内容。";
+  });
   document.getElementById("discardDailyDraft")?.addEventListener("click", discardDailyDraft);
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
     copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
   });
   document.getElementById("useTodayAction")?.addEventListener("click", useTodayAction);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) renderTodayAction(loadEntries());
+    if (!document.hidden) {
+      renderTodayAction(loadEntries());
+      renderDailyRecordAvailability();
+    }
   });
   document.getElementById("historySearch")?.addEventListener("input", () => {
     historyLimit = 12;
@@ -341,6 +352,7 @@ function bindEvents() {
 
   if (el.date) {
     el.date.addEventListener("change", () => {
+      document.getElementById("dateSwitchHint").textContent = "";
       renderYesterdayBContext();
       renderQuickFillCard();
       renderIntentAssist();
@@ -608,6 +620,7 @@ function renderDailyRecordAvailability() {
   const button = document.getElementById("loadDailyRecord");
   const hint = document.getElementById("loadDailyHint");
   if (!button || !hint) return;
+  document.getElementById("useTodayDate").disabled = el.date.value === localDateISO(new Date());
   button.disabled = !record;
   hint.textContent = record ? `${record.date} 已有记录，可以载入后修改。` : "所选日期暂无保存的记录。";
 }
@@ -622,6 +635,7 @@ function loadDailyRecord(date, focusForm = false) {
     return;
   }
   el.date.value = record.date;
+  document.getElementById("dateSwitchHint").textContent = "";
   for (const field of el.form.elements) {
     if (!field.name || field.name === "date") continue;
     const value = record[field.name];
@@ -669,6 +683,7 @@ function discardDailyDraft() {
   }
   el.form.reset();
   el.date.value = localDateISO(new Date());
+  document.getElementById("dateSwitchHint").textContent = "";
   toggleRuinCodes();
   renderDailyRecordAvailability();
   renderYesterdayBContext();
