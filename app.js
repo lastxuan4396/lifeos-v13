@@ -1,4 +1,4 @@
-// lifeos-shell-v77
+// lifeos-shell-v78
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -55,6 +55,7 @@ const defaultExperimentPool = [
 ];
 
 let latestOutputText = "";
+let latestOutputDate = "";
 let latestWrOutputText = "";
 let latestPatchOutputText = "";
 let latestPlaybookOutputText = "";
@@ -571,8 +572,10 @@ function bindEvents() {
     el.copyLifeOS.addEventListener("click", () => {
       const pending = hasPendingOutput();
       const external = hasExternalOutputChange();
-      const packet = buildLifeOSPacket(getFormData(), pending || external ? "" : latestOutputText);
-      document.getElementById("copyNotice").textContent = pending || external ? "复制内容使用当前表单，未包含可能过期的结果。" : "";
+      const entry = getFormData();
+      const includeOutput = !pending && !external && outputMatchesDailyForm(entry);
+      const packet = buildLifeOSPacket(entry, includeOutput ? latestOutputText : "");
+      document.getElementById("copyNotice").textContent = !includeOutput && latestOutputText ? "复制内容使用当前表单；结果与表单不一致或可能过期，未附带结果。" : "";
       copyWithFeedback(packet, el.copyLifeOS, "复制给 LifeOS");
     });
   }
@@ -829,6 +832,14 @@ function hasPendingOutput() {
 
 function hasExternalOutputChange() {
   return !document.getElementById("outputExternalNotice").classList.contains("hidden");
+}
+
+function outputMatchesDailyForm(entry) {
+  if (!latestOutputText || !latestOutputDate || latestOutputDate !== entry.date) return false;
+  const record = loadEntries().find((item) => item.date === entry.date);
+  if (!record || record.output?.text !== latestOutputText) return false;
+  const normalized = { ...record, ruinCodes: Array.isArray(record.ruinCodes) ? record.ruinCodes : [] };
+  return buildDlText(entry) === buildDlText(normalized);
 }
 
 function renderDailyRecordAvailability() {
@@ -3683,6 +3694,7 @@ function renderAll(entries, outputObj, outputDate) {
   document.getElementById("outputExternalNotice").classList.add("hidden");
   const output = outputObj === undefined ? entries[0]?.output : outputObj;
   const shownDate = outputDate || (outputObj === undefined ? entries[0]?.date : "");
+  latestOutputDate = shownDate || "";
   document.getElementById("outputDate").textContent = shownDate ? (output?.text ? `依据 ${shownDate} 的记录生成` : `${shownDate} 的记录暂无已保存输出`) : "";
   renderExecutionFocus(output);
   renderRedDefense(entries.find((entry) => entry.date === shownDate), output);
