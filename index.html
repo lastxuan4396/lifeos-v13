@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v62 -->
+<!-- lifeos-shell-v63 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v62.css">
+  <link rel="stylesheet" href="./styles-v63.css">
 </head>
 <body>
   <main class="page">
@@ -247,6 +247,12 @@ RUIN：0
             </div>
           </div>
 
+          <div class="actions">
+            <button type="submit" class="primary">生成 A/B/C/D 并保存</button>
+            <button id="quickZeroDay" type="button">Zero-Day 一键记录</button>
+          </div>
+          <p class="module-note">下面的方向和指标为可选项，如需填写请在保存前展开。</p>
+
           <div id="engineSignalCard" class="hint-card engine-signal-card">
             <strong id="engineSignalTitle">当前默认B方向：Output</strong>
             <p id="engineSignalText" class="hint-copy">如果你留空，系统会优先给你一个锚点式输出动作。</p>
@@ -357,10 +363,6 @@ RUIN：0
             </div>
           </details>
 
-          <div class="actions">
-            <button type="submit" class="primary">生成 A/B/C/D 并保存</button>
-            <button id="quickZeroDay" type="button">Zero-Day 一键记录</button>
-          </div>
         </form>
       </article>
 
@@ -681,6 +683,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v62.js" defer></script>
+  <script src="./app-v63.js" defer></script>
 </body>
 </html>
