@@ -1,4 +1,4 @@
-// lifeos-shell-v42
+// lifeos-shell-v43
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -232,8 +232,11 @@ async function initOfflineSupport() {
     status.textContent = "离线打开不可用：请通过 HTTPS 或 localhost 访问。已打开的页面仍可在本机保存记录。";
     return;
   }
+  const checkButton = document.getElementById("checkUpdate");
+  checkButton.classList.remove("hidden");
+  let registration;
   try {
-    const registration = await navigator.serviceWorker.register("./sw.js");
+    registration = await navigator.serviceWorker.register("./sw.js");
     let updating = false;
     const showUpdate = () => {
       if (registration.waiting && navigator.serviceWorker.controller) document.getElementById("updateAvailable").classList.remove("hidden");
@@ -252,14 +255,20 @@ async function initOfflineSupport() {
       if (worker) worker.addEventListener("statechange", () => { if (worker.state === "installed") showUpdate(); });
     });
     showUpdate();
-    await navigator.serviceWorker.ready;
-    status.textContent = "离线页面已准备好；云同步仍需联网。";
-    const checkButton = document.getElementById("checkUpdate");
-    checkButton.classList.remove("hidden");
+    const readyTimer = setTimeout(() => {
+      if (!registration.active && !checkButton.disabled) status.textContent = "离线页面尚未准备好，请联网后点击检查更新重试；当前页面仍可保存记录。";
+    }, 8000);
+    navigator.serviceWorker.ready.then(() => {
+      clearTimeout(readyTimer);
+      if (!checkButton.disabled) status.textContent = "离线页面已准备好；云同步仍需联网。";
+      showUpdate();
+    });
     checkButton.addEventListener("click", async () => {
       checkButton.disabled = true;
       status.textContent = "正在检查更新…";
+      const hadActiveWorker = !!registration?.active;
       try {
+        registration = await navigator.serviceWorker.register("./sw.js");
         await registration.update();
         const worker = registration.installing;
         if (worker && !["installed", "activated", "redundant"].includes(worker.state)) {
@@ -275,6 +284,8 @@ async function initOfflineSupport() {
         if (registration.waiting && navigator.serviceWorker.controller) status.textContent = "新版本已准备好，保存内容后可更新。";
         else if (worker?.state === "redundant") status.textContent = "未能准备更新，请稍后联网重试。";
         else if (registration.installing) status.textContent = "更新仍在准备，请稍后再检查。";
+        else if (!registration.active) status.textContent = "离线页面尚未准备好，请稍后联网重试。";
+        else if (!hadActiveWorker) status.textContent = "离线页面已准备好；云同步仍需联网。";
         else status.textContent = "目前没有检测到可用更新。";
       } catch {
         status.textContent = "检查更新失败，请确认网络后重试；本地记录不受影响。";
@@ -283,7 +294,8 @@ async function initOfflineSupport() {
       }
     });
   } catch (error) {
-    status.textContent = "离线页面准备失败，请联网重试；记录仍保存在当前浏览器。";
+    status.textContent = "离线页面准备失败，请联网后重新打开页面；记录仍保存在当前浏览器。";
+    checkButton.classList.add("hidden");
     console.warn("Offline setup failed", error);
   }
 }
