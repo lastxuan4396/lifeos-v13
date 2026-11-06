@@ -1,4 +1,4 @@
-// lifeos-shell-v33
+// lifeos-shell-v34
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1604,7 +1604,7 @@ async function onCopyAppleTemplate() {
 
 async function onCopyMacBridgeCmd() {
   const cmd = [
-    "cd /Users/xiaoxuan/Documents/Playground/lifeos-v13",
+    'cd "$HOME/Documents/ChatGPT/LifeOS"',
     "python3 scripts/macos_usage_bridge.py --open"
   ].join(" && ");
   await copyWithFeedback(cmd, el.copyMacBridgeCmd, "复制 Mac 自动采集命令");

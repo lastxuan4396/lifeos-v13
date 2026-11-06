@@ -49,23 +49,25 @@
 
 运行：
 ```bash
-python3 /Users/xiaoxuan/Documents/Playground/lifeos-v13/scripts/macos_usage_bridge.py --open
+cd "$HOME/Documents/ChatGPT/LifeOS"
+python3 scripts/macos_usage_bridge.py --open
 ```
 
 可选参数：
 ```bash
 # 复制 URL 到剪贴板
-python3 /Users/xiaoxuan/Documents/Playground/lifeos-v13/scripts/macos_usage_bridge.py --pbcopy
+python3 scripts/macos_usage_bridge.py --pbcopy
 
 # 指定日期
-python3 /Users/xiaoxuan/Documents/Playground/lifeos-v13/scripts/macos_usage_bridge.py --date 2026-03-10 --open
+python3 scripts/macos_usage_bridge.py --date 2026-03-10 --open
 
 # 输出 JSON
-python3 /Users/xiaoxuan/Documents/Playground/lifeos-v13/scripts/macos_usage_bridge.py --json
+python3 scripts/macos_usage_bridge.py --json
 ```
 
 如果报权限错误：
 - 给 Terminal / iTerm 开启 Full Disk Access。
+- 换电脑或移动项目目录后，先将 `cd` 路径改为实际项目位置。没有查到应用记录时脚本会停止，不会将缺失数据写成 0。
 
 ## 3) 建议的日常流程（最低摩擦）
 1. iPhone 自动化每天触发一次（健康数据）

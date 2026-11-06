@@ -140,6 +140,11 @@ def main() -> int:
     print("hint: grant Full Disk Access to Terminal/iTerm if needed.")
     return 1
 
+  if not usage:
+    print("[error] no app usage records found for this date; no LifeOS link was generated.")
+    print("hint: check the date, macOS usage-recording availability and database access.")
+    return 1
+
   url = build_lifeos_url(args.site, args.date, usage)
   total_minutes = pretty_minutes(sum(sec for _, sec in usage))
   top = usage[: max(args.top_n, 1)]
