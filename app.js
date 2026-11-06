@@ -1,4 +1,4 @@
-// lifeos-shell-v46
+// lifeos-shell-v47
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1480,9 +1480,9 @@ async function fetchCloudPayload(settings) {
 
   let content = String(file.content || "");
   if (file.truncated && file.raw_url) {
-    const rawRes = await fetch(file.raw_url, { headers: { Accept: "application/json,text/plain;q=0.9,*/*;q=0.8" } });
+    const { response: rawRes, text } = await fetchTextWithTimeout(file.raw_url, { headers: { Accept: "application/json,text/plain;q=0.9,*/*;q=0.8" } });
     if (!rawRes.ok) throw new Error(`读取云端文件失败（${rawRes.status}）。`);
-    content = await rawRes.text();
+    content = text;
   } else if (file.truncated) {
     throw new Error("云端文件不完整且没有下载地址。");
   }
@@ -1515,12 +1515,10 @@ async function githubFetchJson(url, token, options = {}) {
     ...(options.headers || {})
   };
 
-  const res = await fetch(url, {
+  const { response: res, text } = await fetchTextWithTimeout(url, {
     ...options,
     headers
   });
-
-  const text = await res.text();
   let data = null;
   try {
     data = text ? JSON.parse(text) : null;
@@ -1534,6 +1532,21 @@ async function githubFetchJson(url, token, options = {}) {
   }
 
   return data;
+}
+
+async function fetchTextWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const text = await response.text();
+    return { response, text };
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error("请求超时，云端可能已收到操作；请联网后重新同步并核对。");
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 function mergeLocalAndCloud(localPayload, cloudPayload) {
