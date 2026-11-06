@@ -1,4 +1,4 @@
-// lifeos-shell-v51
+// lifeos-shell-v52
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -62,7 +62,9 @@ let latestDojoStarterText = "";
 let syncQueue = Promise.resolve();
 let historyLimit = 12;
 let dailyDraftSnapshot = null;
+let dailyDraftSaveFailed = false;
 const workflowDraftSnapshots = new Map([[WR_DRAFT_KEY, null], [PATCH_DRAFT_KEY, null]]);
+const workflowDraftSaveFailed = new Set();
 
 const el = {
   modeQuick: document.getElementById("modeQuick"),
@@ -775,6 +777,7 @@ function loadDailyRecord(date, focusForm = false) {
 }
 
 function showDailyDraftConflict() {
+  dailyDraftSaveFailed = true;
   document.getElementById("dailyDraftConflict").classList.remove("hidden");
   document.getElementById("draftStatus").textContent = "当前页面的草稿尚未保存，请先处理另一标签页的更改。";
 }
@@ -792,10 +795,12 @@ function saveDailyDraft(allowOverwrite = false) {
     const next = JSON.stringify(fields);
     localStorage.setItem(DRAFT_KEY, next);
     dailyDraftSnapshot = next;
+    dailyDraftSaveFailed = false;
     document.getElementById("dailyDraftConflict").classList.add("hidden");
     document.getElementById("draftStatus").textContent = "草稿已保存在当前浏览器";
     return true;
   } catch (error) {
+    dailyDraftSaveFailed = true;
     document.getElementById("draftStatus").textContent = "草稿保存失败，请检查浏览器存储空间或权限。";
     return false;
   }
@@ -813,6 +818,7 @@ function discardDailyDraft() {
     if (localStorage.getItem(DRAFT_KEY) !== dailyDraftSnapshot) { showDailyDraftConflict(); return; }
     localStorage.removeItem(DRAFT_KEY);
     dailyDraftSnapshot = null;
+    dailyDraftSaveFailed = false;
   } catch {
     document.getElementById("draftStatus").textContent = "无法清除草稿，请检查浏览器存储权限。";
     return;
@@ -836,6 +842,7 @@ function restoreDailyDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     dailyDraftSnapshot = raw;
+    dailyDraftSaveFailed = false;
     if (raw === null) return false;
     const fields = JSON.parse(raw);
     if (!Array.isArray(fields)) throw new Error("Invalid draft");
@@ -888,6 +895,7 @@ function clearDailyDraft() {
     }
     localStorage.removeItem(DRAFT_KEY);
     dailyDraftSnapshot = null;
+    dailyDraftSaveFailed = false;
     document.getElementById("dailyDraftConflict").classList.add("hidden");
     document.getElementById("draftStatus").textContent = "记录已保存，草稿已清除。";
   } catch (error) {
@@ -990,6 +998,7 @@ function workflowDraftInfo(key) {
 }
 
 function showWorkflowDraftConflict(key) {
+  workflowDraftSaveFailed.add(key);
   const info = workflowDraftInfo(key);
   document.getElementById(info.conflictId).classList.remove("hidden");
   document.getElementById(info.statusId).textContent = "当前页面的草稿尚未保存，请先处理另一标签页的更改。";
@@ -1009,6 +1018,7 @@ function saveWorkflowDraft(form, key, statusId, badgeId, allowOverwrite = false)
     const next = JSON.stringify(fields);
     localStorage.setItem(key, next);
     workflowDraftSnapshots.set(key, next);
+    workflowDraftSaveFailed.delete(key);
     document.getElementById(workflowDraftInfo(key).conflictId).classList.add("hidden");
     document.getElementById(statusId).textContent = "草稿已保存在当前浏览器。";
     const badge = document.getElementById(badgeId);
@@ -1016,6 +1026,7 @@ function saveWorkflowDraft(form, key, statusId, badgeId, allowOverwrite = false)
     badge.classList.remove("hidden");
     return true;
   } catch {
+    workflowDraftSaveFailed.add(key);
     document.getElementById(statusId).textContent = "草稿保存失败，请检查浏览器存储空间或权限。";
     return false;
   }
@@ -1054,6 +1065,7 @@ function restoreWorkflowDraft(form, key, statusId, badgeId) {
   try {
     const raw = localStorage.getItem(key);
     workflowDraftSnapshots.set(key, raw);
+    workflowDraftSaveFailed.delete(key);
     if (raw === null) return;
     const fields = JSON.parse(raw);
     if (!Array.isArray(fields)) throw new Error("Invalid draft");
@@ -1077,6 +1089,7 @@ function clearWorkflowDraft(key, statusId, badgeId) {
     }
     localStorage.removeItem(key);
     workflowDraftSnapshots.set(key, null);
+    workflowDraftSaveFailed.delete(key);
     document.getElementById(workflowDraftInfo(key).conflictId).classList.add("hidden");
     document.getElementById(statusId).textContent = "记录已保存，草稿已清除。";
     document.getElementById(badgeId).textContent = " · 有草稿";
@@ -1260,12 +1273,47 @@ function onDojoSubmit(event) {
 }
 
 function onExportJson() {
-  const backup = buildBackupPayload();
-  const text = JSON.stringify(backup, null, 2);
-  const filename = `lifeos-backup-${localDateISO(new Date())}.json`;
+  try {
+    const backup = buildBackupPayload();
+    let withDrafts = true;
+    try { backup.drafts = collectBackupDrafts(); }
+    catch (error) {
+      withDrafts = false;
+      if (!confirm(`无法完整备份草稿：${String(error?.message || error)}\n\n是否先导出已保存的记录（不含草稿）？`)) return;
+    }
+    const text = JSON.stringify(backup, null, 2);
+    const filename = `lifeos-backup-${localDateISO(new Date())}.json`;
+    downloadFile(filename, text, "application/json;charset=utf-8");
+    setModuleOutput(el.dataOutput, `已导出 JSON（${withDrafts ? "含已保存草稿" : "仅记录，不含草稿"}）：${filename}`, "导出/导入结果会显示在这里");
+  } catch (error) {
+    setModuleOutput(el.dataOutput, `导出失败：${String(error?.message || error)}`, "导出/导入结果会显示在这里");
+  }
+}
 
-  downloadFile(filename, text, "application/json;charset=utf-8");
-  setModuleOutput(el.dataOutput, `已导出 JSON：${filename}`, "导出/导入结果会显示在这里");
+function collectBackupDrafts() {
+  if (dailyDraftSaveFailed || workflowDraftSaveFailed.size) throw new Error("有草稿未保存或存在冲突，请先处理后再导出完整备份。");
+  const entries = [["daily", DRAFT_KEY, dailyDraftSnapshot], ["weekly", WR_DRAFT_KEY, workflowDraftSnapshots.get(WR_DRAFT_KEY)], ["patch", PATCH_DRAFT_KEY, workflowDraftSnapshots.get(PATCH_DRAFT_KEY)]];
+  const drafts = {};
+  for (const [name, key, snapshot] of entries) {
+    const raw = localStorage.getItem(key);
+    if (raw !== snapshot) throw new Error("请先处理其他标签页的草稿冲突，再导出完整备份。");
+    drafts[name] = raw === null ? null : JSON.parse(raw);
+  }
+  return validateBackupDrafts({ drafts });
+}
+
+function validateBackupDrafts(payload) {
+  if (!Object.prototype.hasOwnProperty.call(payload, "drafts")) return null;
+  const drafts = payload.drafts;
+  if (!drafts || typeof drafts !== "object" || Array.isArray(drafts)) throw new Error("备份中的草稿格式无效，未修改现有数据。");
+  for (const name of ["daily", "weekly", "patch"]) {
+    const fields = drafts[name];
+    if (fields === null) continue;
+    if (!Array.isArray(fields) || fields.some((field) => !field || typeof field !== "object" || Array.isArray(field) || typeof field.name !== "string" || typeof field.value !== "string" || (name === "daily" && (typeof field.type !== "string" || typeof field.checked !== "boolean")))) {
+      throw new Error(`备份中的 ${name} 草稿格式无效，未修改现有数据。`);
+    }
+  }
+  return { daily: drafts.daily, weekly: drafts.weekly, patch: drafts.patch };
 }
 
 function onExportCsv() {
@@ -1295,10 +1343,14 @@ async function onImportData() {
     const raw = await file.text();
     const parsed = JSON.parse(raw);
     const { dailyLogs, weeklyReviews, systemPatches, appleSyncMeta } = validateBackup(parsed);
-    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条。\n建议先导出当前 JSON。确认覆盖？`);
+    const restoreDrafts = document.getElementById("restoreBackupDrafts").checked;
+    const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
+    const draftMessage = restoreDrafts ? (drafts ? "将替换当前每日、周复盘和 Patch 草稿；备份中为空的草稿会清除。" : "该备份没有草稿，本机草稿保持不变。") : "本机草稿保持不变。";
+    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条。\n${draftMessage}\n建议先导出当前 JSON。确认覆盖？`);
     if (!ok) return;
 
-    replaceBackupData({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta });
+    replaceBackupData({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta }, drafts);
+    if (drafts) restoreImportedDrafts();
 
     renderAll(loadEntries());
     renderWorkflowPanels();
@@ -1311,7 +1363,8 @@ async function onImportData() {
       `DL：${dailyLogs.length} 条`,
       `WR：${weeklyReviews.length} 条`,
       `Patch：${systemPatches.length} 条`,
-      `Apple同步：${appleSyncMeta ? "已恢复" : "无"}`
+      `Apple同步：${appleSyncMeta ? "已恢复" : "无"}`,
+      `草稿：${drafts ? "已恢复" : "保持不变"}`
     ].join(" | ");
     setModuleOutput(el.dataOutput, summary, "导出/导入结果会显示在这里");
   } catch (error) {
@@ -1320,6 +1373,39 @@ async function onImportData() {
       `导入失败：${String(error?.message || error)}`,
       "导出/导入结果会显示在这里"
     );
+  }
+}
+
+function restoreImportedDrafts() {
+  el.form.reset();
+  el.date.value = localDateISO(new Date());
+  const hasDailyDraft = restoreDailyDraft();
+  el.date.dataset.previousDate = el.date.value;
+  document.getElementById("dailyDraftConflict").classList.add("hidden");
+  document.getElementById("dateSwitchHint").textContent = "";
+  if (!hasDailyDraft) document.getElementById("draftStatus").textContent = "备份中没有每日草稿，表单已重置。";
+  toggleRuinCodes();
+
+  for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY]) {
+    const info = workflowDraftInfo(key);
+    info.form.reset();
+    if (key === WR_DRAFT_KEY) el.wrWeekRange.value = defaultWeekRange(new Date());
+    else el.patchStartDate.value = localDateISO(new Date());
+    const badge = document.getElementById(info.badgeId);
+    badge.textContent = " · 有草稿";
+    badge.classList.add("hidden");
+    document.getElementById(info.conflictId).classList.add("hidden");
+    document.getElementById(info.statusId).textContent = "备份中没有此草稿，表单已重置。";
+    restoreWorkflowDraft(info.form, key, info.statusId, info.badgeId);
+  }
+  if (!document.getElementById("pendingBridge").classList.contains("hidden")) {
+    document.getElementById("bridgeConflicts").classList.add("hidden");
+    document.getElementById("reviewBridgeFields").classList.add("hidden");
+    document.getElementById("finishBridgeReview").classList.add("hidden");
+    document.getElementById("finishBridgeReviewAtMetrics").classList.add("hidden");
+    document.getElementById("mergePendingBridge").classList.remove("hidden");
+    document.getElementById("applyPendingBridge").classList.remove("hidden");
+    document.getElementById("pendingBridgeStatus").textContent = "草稿已恢复，设备链接仍待处理，请核对日期。";
   }
 }
 
@@ -1372,13 +1458,18 @@ function validateBackup(payload) {
   return { dailyLogs: data.dailyLogs.slice().sort((a, b) => b.date.localeCompare(a.date)), weeklyReviews: data.weeklyReviews, systemPatches: data.systemPatches, appleSyncMeta: data.appleSyncMeta || null };
 }
 
-function replaceBackupData(data) {
+function replaceBackupData(data, drafts = null) {
   const replacements = new Map([
     [STORAGE_KEY, JSON.stringify(data.dailyLogs)],
     [WR_STORAGE_KEY, JSON.stringify(data.weeklyReviews)],
     [PATCH_STORAGE_KEY, JSON.stringify(data.systemPatches)],
     [APPLE_SYNC_META_KEY, data.appleSyncMeta ? JSON.stringify(data.appleSyncMeta) : null]
   ]);
+  if (drafts) {
+    for (const [key, value] of [[DRAFT_KEY, drafts.daily], [WR_DRAFT_KEY, drafts.weekly], [PATCH_DRAFT_KEY, drafts.patch]]) {
+      replacements.set(key, value === null ? null : JSON.stringify(value));
+    }
+  }
   const original = new Map([...replacements.keys()].map((key) => [key, localStorage.getItem(key)]));
   const written = [];
   try {

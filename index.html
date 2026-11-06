@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v51 -->
+<!-- lifeos-shell-v52 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v51.css">
+  <link rel="stylesheet" href="./styles-v52.css">
 </head>
 <body>
   <main class="page">
@@ -598,7 +598,7 @@ RUIN：0
       <details class="flow-block" id="dataSettings">
         <summary>数据与迁移（导出 / 导入）</summary>
         <div class="mini-form">
-          <p class="module-note">用于跨设备备份与恢复。JSON 可用于导入，CSV 便于表格查看。导入会覆盖本地记录，建议先导出当前 JSON。备份不包含未提交草稿或云同步令牌。</p>
+          <p class="module-note">JSON 备份通常包含记录和当前浏览器已保存的草稿，不包含云同步令牌；草稿无法完整备份时，可选择只导出记录。CSV 便于表格查看。导入会覆盖本地记录，建议先导出当前 JSON。</p>
           <div class="actions">
             <button id="exportJson" type="button">导出 JSON（完整备份）</button>
             <button id="exportCsv" type="button">导出 CSV（表格）</button>
@@ -608,6 +608,7 @@ RUIN：0
             导入备份文件（JSON）
             <input id="importFile" type="file" accept=".json,application/json">
           </label>
+          <label class="inline"><input id="restoreBackupDrafts" type="checkbox"> 同时恢复备份里的草稿（会替换本机草稿）</label>
           <div class="actions">
             <button id="importData" type="button" class="primary">导入并覆盖本地数据</button>
           </div>
@@ -657,6 +658,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v51.js" defer></script>
+  <script src="./app-v52.js" defer></script>
 </body>
 </html>
