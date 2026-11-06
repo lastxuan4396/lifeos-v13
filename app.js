@@ -1,4 +1,4 @@
-// lifeos-shell-v76
+// lifeos-shell-v77
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -466,6 +466,7 @@ function bindEvents() {
   });
   document.getElementById("loadOtherDailyDraft")?.addEventListener("click", loadOtherDailyDraft);
   window.addEventListener("storage", (event) => {
+    if (event.key === null || [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].includes(event.key)) markPlaybookOutputStale();
     if ((event.key === DRAFT_KEY || event.key === null) && event.newValue !== dailyDraftSnapshot) showDailyDraftConflict();
     if (event.key === STORAGE_KEY || event.key === null) {
       const entries = loadEntries();
@@ -754,13 +755,11 @@ function bindEvents() {
         alert("先生成一次 Playbook 草案。");
         return;
       }
-      if (!document.getElementById("playbookOutputPending").classList.contains("hidden") && !confirm("月份已更改，复制的是上次生成的 Playbook。是否继续？")) return;
+      if (!document.getElementById("playbookOutputPending").classList.contains("hidden") && !confirm("月份或记录已更改，复制的是上次生成的 Playbook。是否继续？")) return;
       copyWithFeedback(latestPlaybookOutputText, el.copyPlaybook, "复制 Playbook");
     });
   }
-  el.playbookMonth?.addEventListener("change", () => {
-    if (latestPlaybookOutputText) document.getElementById("playbookOutputPending").classList.remove("hidden");
-  });
+  el.playbookMonth?.addEventListener("change", markPlaybookOutputStale);
 
   if (el.dojoForm) {
     el.dojoForm.addEventListener("submit", onDojoSubmit);
@@ -1443,6 +1442,10 @@ function onBuildPlaybook() {
   setModuleOutput(el.playbookOutput, outputText, "点击“生成 Playbook v1 草案”后显示");
 }
 
+function markPlaybookOutputStale() {
+  if (latestPlaybookOutputText) document.getElementById("playbookOutputPending").classList.remove("hidden");
+}
+
 function onDojoSubmit(event) {
   event.preventDefault();
   const data = getDojoData();
@@ -1704,8 +1707,10 @@ function replaceBackupData(data, drafts = null) {
         else localStorage.setItem(key, value);
       } catch { rollbackFailed = true; }
     }
+    if (rollbackFailed) markPlaybookOutputStale();
     throw new Error(rollbackFailed ? "存储失败且无法完全恢复原数据，请立即检查本地记录。" : "存储失败，已恢复原有数据。请检查浏览器存储空间。");
   }
+  if ([STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].some((key) => original.get(key) !== replacements.get(key))) markPlaybookOutputStale();
 }
 
 function loadSyncSettings() {
@@ -4142,6 +4147,7 @@ function loadCollection(key) {
 
 function saveCollection(key, entries) {
   localStorage.setItem(key, JSON.stringify(entries));
+  if ([STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].includes(key)) markPlaybookOutputStale();
 }
 
 function setModuleOutput(node, text, emptyMessage) {
