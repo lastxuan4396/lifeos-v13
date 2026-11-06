@@ -1,4 +1,4 @@
-// lifeos-shell-v96
+// lifeos-shell-v97
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -63,6 +63,7 @@ let latestPlaybookOutputText = "";
 let latestDojoOutputText = "";
 let latestDojoStarterText = "";
 let syncQueue = Promise.resolve();
+let syncSettingsSnapshot = null;
 let historyLimit = 12;
 let backupPreviewRequest = 0;
 const unreadableCollections = new Set();
@@ -205,7 +206,7 @@ function init() {
   restoreWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
   restoreWorkflowDraft(el.dojoForm, DOJO_DRAFT_KEY, "dojoDraftStatus", "dojoDraftBadge");
   initWorkspaceDraftStatus();
-  hydrateSyncSettingsForm();
+  try { hydrateSyncSettingsForm(); } catch { syncSettingsSnapshot = undefined; }
   const hasDraft = restoreDailyDraft();
   const params = new URLSearchParams(window.location.search);
   const bridgeKeys = ["sleepHours", "sleep", "sleep_h", "trainingMinutes", "exerciseMinutes", "workoutMinutes", "deepWorkMinutes", "studyMinutes", "focusMinutes", "learningMinutes", "outputWords", "words", "writingWords", "appUsageMinutes", "softwareUsageMinutes", "usageMinutes", "screenMinutes", "phoneUsageMinutes", "mobileUsageMinutes", "iosUsageMinutes", "macUsageMinutes", "desktopUsageMinutes", "topAppName", "topApp", "topAppMinutes", "topAppUsageMinutes", "steps", "stepCount", "activeCalories", "calories", "moveCalories", "distanceKm", "workoutDistanceKm", "distance"];
@@ -494,6 +495,7 @@ function bindEvents() {
   });
   document.getElementById("loadOtherDailyDraft")?.addEventListener("click", loadOtherDailyDraft);
   window.addEventListener("storage", (event) => {
+    if (event.key === SYNC_SETTINGS_KEY || event.key === null) ensureSyncSettingsCurrent();
     if (event.key === null || [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY, APPLE_SYNC_META_KEY].includes(event.key)) markSyncDataChanged();
     if (event.key === null || [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].includes(event.key)) markPlaybookOutputStale();
     if ((event.key === DRAFT_KEY || event.key === null) && event.newValue !== dailyDraftSnapshot) showDailyDraftConflict();
@@ -865,6 +867,14 @@ function bindEvents() {
     el.syncSave.addEventListener("click", onSyncSaveSettings);
   }
   document.getElementById("syncClear")?.addEventListener("click", clearLocalSyncSettings);
+  document.getElementById("loadOtherSyncConfig")?.addEventListener("click", () => {
+    if (!confirm("载入最新同步配置会替换当前页面的配置输入。是否继续？")) return;
+    try {
+      hydrateSyncSettingsForm();
+      document.getElementById("syncConfigConflict").classList.add("hidden");
+      renderSyncStatus("已载入最新同步配置，请核对后再操作。");
+    } catch { renderSyncStatus("无法读取同步配置；当前输入仍保留。"); }
+  });
 
   if (el.syncInit) {
     el.syncInit.addEventListener("click", onSyncInitCloud);
@@ -1893,11 +1903,22 @@ function loadSyncSettings() {
 }
 
 function saveSyncSettings(settings) {
-  localStorage.setItem(SYNC_SETTINGS_KEY, JSON.stringify({
+  const next = JSON.stringify({
     token: settings.token || "",
     gistId: settings.gistId || "",
     auto: Boolean(settings.auto)
-  }));
+  });
+  localStorage.setItem(SYNC_SETTINGS_KEY, next);
+  syncSettingsSnapshot = next;
+}
+
+function ensureSyncSettingsCurrent() {
+  try {
+    if (localStorage.getItem(SYNC_SETTINGS_KEY) === syncSettingsSnapshot) return true;
+    document.getElementById("syncConfigConflict").classList.remove("hidden");
+    renderSyncStatus("同步配置已在另一标签页更改；请先载入最新配置。");
+  } catch { renderSyncStatus("无法读取同步配置，操作未进行；当前输入仍保留。"); }
+  return false;
 }
 
 function syncTargetIsCurrent(settings) {
@@ -1917,6 +1938,7 @@ function getSyncSettingsFromForm() {
 }
 
 function hydrateSyncSettingsForm() {
+  const snapshot = localStorage.getItem(SYNC_SETTINGS_KEY);
   const settings = loadSyncSettings();
   if (el.syncToken) {
     el.syncToken.value = settings.token;
@@ -1927,6 +1949,7 @@ function hydrateSyncSettingsForm() {
   if (el.syncAuto) {
     el.syncAuto.checked = settings.auto;
   }
+  syncSettingsSnapshot = snapshot;
 }
 
 function renderSyncStatus(overrideMessage) {
@@ -1967,6 +1990,7 @@ function markSyncDataChanged() {
 }
 
 function onSyncSaveSettings() {
+  if (!ensureSyncSettingsCurrent()) return;
   const settings = getSyncSettingsFromForm();
   try {
     saveSyncSettings(settings);
@@ -1983,9 +2007,12 @@ function onSyncSaveSettings() {
 }
 
 function clearLocalSyncSettings() {
+  if (!ensureSyncSettingsCurrent()) return;
   if (!confirm("将清除此浏览器保存的 Token、Gist ID 和自动同步设置，不会删除云仓或本地记录。已经开始的网络请求可能仍会完成。是否继续？")) return;
+  if (!ensureSyncSettingsCurrent()) return;
   try {
     localStorage.removeItem(SYNC_SETTINGS_KEY);
+    syncSettingsSnapshot = null;
     el.syncToken.value = "";
     el.syncGistId.value = "";
     el.syncAuto.checked = false;
@@ -1998,12 +2025,14 @@ function clearLocalSyncSettings() {
 async function onSyncInitCloud() {
   const button = document.getElementById("syncInit");
   if (button.disabled) return;
+  if (!ensureSyncSettingsCurrent()) return;
   const settings = getSyncSettingsFromForm();
   if (!settings.token) {
     alert("先填写 GitHub Token。");
     return;
   }
   if (settings.gistId && !confirm(`当前已填写云仓 ${settings.gistId}。初始化会创建新的云仓并在本机改用新 ID；原云仓仍会保留。是否继续？`)) return;
+  if (!ensureSyncSettingsCurrent()) return;
 
   let initialStored;
   try { initialStored = localStorage.getItem(SYNC_SETTINGS_KEY); }
@@ -2043,6 +2072,7 @@ async function onSyncInitCloud() {
 }
 
 async function onSyncNow() {
+  if (!ensureSyncSettingsCurrent()) return;
   const settings = getSyncSettingsFromForm();
   if (!settings.token || !settings.gistId) {
     alert("先填写 Token 和 Gist ID，或点“初始化云仓”。");
