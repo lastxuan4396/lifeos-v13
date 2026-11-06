@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v54 -->
+<!-- lifeos-shell-v55 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v54.css">
+  <link rel="stylesheet" href="./styles-v55.css">
 </head>
 <body>
   <main class="page">
@@ -381,6 +381,14 @@ RUIN：0
       </article>
     </section>
 
+    <div id="patchReminder" class="hint-card hidden" role="status">
+      <strong>可以做一次 System Patch</strong>
+      <p id="patchReminderText" class="hint-copy"></p>
+      <button id="openPatch" type="button">打开 System Patch</button>
+    </div>
+
+    <details id="secondaryWorkspace" class="secondary-workspace">
+      <summary>查看记录、复盘与数据<span id="workspaceDraftStatus" aria-live="polite"></span></summary>
     <section class="grid bottom-grid">
       <article class="card">
         <h2>Scoreboard-5 v1.3（近7天）</h2>
@@ -404,12 +412,6 @@ RUIN：0
     <section class="card flow-card">
       <h2>完整流程工作台（周 / 双周 / 月 / 训练）</h2>
       <p class="flow-intro">日常只跑 DL-30；下面 4 个模块按节奏触发，默认折叠，不占空间。</p>
-      <div id="patchReminder" class="hint-card hidden" role="status">
-        <strong>可以做一次 System Patch</strong>
-        <p id="patchReminderText" class="hint-copy"></p>
-        <button id="openPatch" type="button">打开 System Patch</button>
-      </div>
-
       <details class="flow-block">
         <summary>WR-10（每周 10 分钟）<span id="wrDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="wrForm" class="mini-form" autocomplete="off">
@@ -641,6 +643,7 @@ RUIN：0
         <pre id="dataOutput" class="module-output empty">导出/导入结果会显示在这里</pre>
       </details>
     </section>
+    </details>
   </main>
 
   <dialog id="copyFallback" aria-labelledby="copyFallbackTitle">
@@ -661,6 +664,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v54.js" defer></script>
+  <script src="./app-v55.js" defer></script>
 </body>
 </html>

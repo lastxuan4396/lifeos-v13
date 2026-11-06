@@ -1,4 +1,4 @@
-// lifeos-shell-v54
+// lifeos-shell-v55
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -196,6 +196,7 @@ function init() {
   bindEvents();
   restoreWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
   restoreWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
+  initWorkspaceDraftStatus();
   hydrateSyncSettingsForm();
   const hasDraft = restoreDailyDraft();
   const params = new URLSearchParams(window.location.search);
@@ -332,10 +333,26 @@ function setUIMode(mode) {
   if (el.intentDetails) {
     el.intentDetails.open = nextMode === "full";
   }
+  document.getElementById("secondaryWorkspace").open = nextMode === "full";
+}
+
+function initWorkspaceDraftStatus() {
+  const wr = document.getElementById("wrDraftBadge");
+  const patch = document.getElementById("patchDraftBadge");
+  const update = () => {
+    const parts = [];
+    if (!wr.classList.contains("hidden")) parts.push(`周复盘${wr.textContent.includes("冲突") ? "草稿冲突" : "有草稿"}`);
+    if (!patch.classList.contains("hidden")) parts.push(`Patch${patch.textContent.includes("冲突") ? "草稿冲突" : "有草稿"}`);
+    document.getElementById("workspaceDraftStatus").textContent = parts.length ? ` · ${parts.join("、")}` : "";
+  };
+  const observer = new MutationObserver(update);
+  for (const badge of [wr, patch]) observer.observe(badge, { attributes: true, attributeFilter: ["class"], childList: true, characterData: true, subtree: true });
+  update();
 }
 
 function bindEvents() {
   document.getElementById("openSyncSettings")?.addEventListener("click", () => {
+    document.getElementById("secondaryWorkspace").open = true;
     const details = document.getElementById("dataSettings");
     details.open = true;
     details.scrollIntoView({ block: "start", behavior: "auto" });
@@ -399,6 +416,7 @@ function bindEvents() {
   }
 
   document.getElementById("openPatch")?.addEventListener("click", () => {
+    document.getElementById("secondaryWorkspace").open = true;
     const details = document.getElementById("patchDetails");
     details.open = true;
     details.scrollIntoView({ behavior: "smooth", block: "start" });

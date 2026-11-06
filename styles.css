@@ -1,4 +1,4 @@
-/* lifeos-shell-v54 */
+/* lifeos-shell-v55 */
 :root {
   --bg: #f4f4ee;
   --ink: #1f1e17;
@@ -88,6 +88,25 @@ h1 {
 .flow-card {
   margin-top: 16px;
 }
+
+.secondary-workspace {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  background: #fffdf5;
+  padding: 14px;
+}
+
+.secondary-workspace > summary {
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+#workspaceDraftStatus {
+  color: var(--danger);
+  font-size: 0.84rem;
+}
+
+#patchReminder { margin-top: 16px; }
 
 .flow-intro {
   margin: -4px 0 10px;
@@ -188,6 +207,9 @@ fieldset {
   align-items: center;
   gap: 6px;
   margin-right: 6px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 
 .hint-card {
@@ -397,8 +419,12 @@ details {
 
 .mini-form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
 }
+
+.mini-form > *, .sync-box > * { min-width: 0; }
+input[type="file"] { max-width: 100%; min-width: 0; }
 
 .mini-grid {
   display: grid;
@@ -520,6 +546,7 @@ details {
   padding: 10px;
   background: #fcfbf7;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
 }
 
