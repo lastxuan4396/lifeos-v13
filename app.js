@@ -1,4 +1,4 @@
-// lifeos-shell-v66
+// lifeos-shell-v67
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -461,7 +461,10 @@ function bindEvents() {
   document.getElementById("keepPatchDraft")?.addEventListener("click", () => keepWorkflowDraft(PATCH_DRAFT_KEY));
   document.getElementById("loadPatchDraft")?.addEventListener("click", () => loadOtherWorkflowDraft(PATCH_DRAFT_KEY));
   document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
-    copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
+    const steps = document.getElementById("todayActionSteps").textContent;
+    const defense = document.getElementById("todayRedDefense");
+    const text = defense.classList.contains("hidden") ? steps : `${steps}\n\n红灯防线：${document.getElementById("todayRedDefenseText").textContent}`;
+    copyWithFeedback(text, event.currentTarget, "复制今天的行动");
   });
   document.getElementById("useTodayAction")?.addEventListener("click", () => useTodayAction(false));
   document.getElementById("markTodayActionDone")?.addEventListener("click", () => useTodayAction(true));
