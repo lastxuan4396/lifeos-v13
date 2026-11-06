@@ -1,4 +1,4 @@
-// lifeos-shell-v29
+// lifeos-shell-v30
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2536,7 +2536,7 @@ function buildLifeOSOutput(entry) {
     );
   }
 
-  latestOutputText = lines.join("\n");
+  const outputText = lines.join("\n");
 
   return {
     signals,
@@ -2545,7 +2545,7 @@ function buildLifeOSOutput(entry) {
     risk: riskLine,
     tailBet,
     woop,
-    text: latestOutputText
+    text: outputText
   };
 }
 
