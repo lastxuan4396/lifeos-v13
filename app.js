@@ -1,4 +1,4 @@
-// lifeos-shell-v30
+// lifeos-shell-v31
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2079,6 +2079,7 @@ function applyAppleAutofillFromUrl() {
     source: payload.source || "external",
     syncedAt: new Date().toISOString(),
     date: payload.date || el.date?.value || "",
+    autoRuin: params.get("autoRuin") === "1",
     metrics: {
       sleepHours: payload.sleepHours,
       trainingMinutes: payload.trainingMinutes,
@@ -2217,7 +2218,7 @@ function hydrateMetricsFromLastAppleSync() {
     el.topAppName.value = String(meta.metrics.topAppName);
   }
 
-  applySleepRuinRule(false);
+  if (meta.autoRuin === true) applySleepRuinRule(false);
   renderSleepRuinAssist();
   renderIntentAssist();
   renderEngineSignal();

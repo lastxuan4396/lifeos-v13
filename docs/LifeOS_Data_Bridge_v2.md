@@ -35,6 +35,8 @@
 - `topAppName`
 - `topAppMinutes`
 
+设备链接带 `autoRuin=1` 且睡眠低于 6.5 小时时，网页会自动选择睡眠红灯；未带该参数时只给出提示与保守行动，不自动修改红灯选择。手动修改后的未提交草稿会优先保留。
+
 ## 2) Mac 自动（应用使用时间）
 项目内脚本：
 - `scripts/macos_usage_bridge.py`
