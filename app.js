@@ -1,4 +1,4 @@
-// lifeos-shell-v73
+// lifeos-shell-v74
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -415,6 +415,16 @@ function bindEvents() {
 
   if (el.form) {
     el.form.addEventListener("submit", onSubmit);
+    el.form.addEventListener("invalid", (event) => {
+      let parent = event.target.parentElement;
+      let opened = false;
+      while (parent && parent !== el.form) {
+        if (parent.tagName === "DETAILS" && !parent.open) { parent.open = true; opened = true; }
+        parent = parent.parentElement;
+      }
+      if (opened) document.getElementById("dailyValidationStatus").textContent = "有可选项目需要检查，已展开对应区域。";
+    }, true);
+    el.form.addEventListener("input", () => { document.getElementById("dailyValidationStatus").textContent = ""; });
     el.form.addEventListener("input", saveDailyDraft);
     el.form.addEventListener("change", saveDailyDraft);
     el.form.addEventListener("click", (event) => {
@@ -1002,15 +1012,7 @@ function onSubmit(event) {
 }
 
 function onZeroDay() {
-  if (!el.date.checkValidity()) {
-    el.date.reportValidity();
-    return;
-  }
-  const bRadio = el.form.querySelector("input[name='bExecuted']");
-  if (!bRadio.checkValidity()) {
-    bRadio.reportValidity();
-    return;
-  }
+  if (!el.form.reportValidity()) return;
   const entry = getFormData();
 
   if (!entry.behavior || !entry.result) {
