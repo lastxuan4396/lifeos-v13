@@ -1,4 +1,4 @@
-// lifeos-shell-v25
+// lifeos-shell-v26
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1081,7 +1081,7 @@ function onExportCsv() {
   const csv = buildCsvExport();
   const filename = `lifeos-backup-${localDateISO(new Date())}.csv`;
 
-  downloadFile(filename, csv, "text/csv;charset=utf-8");
+  downloadFile(filename, `\uFEFF${csv}`, "text/csv;charset=utf-8");
   setModuleOutput(el.dataOutput, `已导出 CSV：${filename}`, "导出/导入结果会显示在这里");
 }
 
@@ -3457,35 +3457,22 @@ function buildBackupPayload() {
 }
 
 function buildCsvExport() {
-  const rows = [];
-  rows.push(["recordType", "primaryKey", "payloadJson", "createdAt"]);
-
-  loadEntries().forEach((entry) => {
-    rows.push([
-      "dailyLog",
-      entry.date || "",
-      JSON.stringify(entry),
-      entry.createdAt || ""
-    ]);
-  });
-
-  loadCollection(WR_STORAGE_KEY).forEach((entry) => {
-    rows.push([
-      "weeklyReview",
-      entry.weekRange || "",
-      JSON.stringify(entry),
-      entry.createdAt || ""
-    ]);
-  });
-
-  loadCollection(PATCH_STORAGE_KEY).forEach((entry) => {
-    rows.push([
-      "systemPatch",
-      entry.startDate || "",
-      JSON.stringify(entry),
-      entry.createdAt || ""
-    ]);
-  });
+  const fields = [
+    ["行为", "behavior"], ["结果", "result"], ["昨日B执行", "bExecuted"],
+    ["红灯", "ruin"], ["红灯码", "ruinCodes"], ["明日意图", "intent"],
+    ["睡眠小时", "sleepHours"], ["训练分钟", "trainingMinutes"], ["深度工作分钟", "deepWorkMinutes"],
+    ["输出字数", "outputWords"], ["步数", "steps"], ["本周有效动作", "bestAction"],
+    ["本周失控", "worstLeak"], ["下周优先事项", "priority"], ["实验行动", "expAction"],
+    ["唯一改动", "oneChange"], ["系统卡点", "bottleneck"], ["最常断点", "breakPoint"], ["减摩擦改动", "fix"]
+  ];
+  const rows = [["recordType", "primaryKey", "payloadJson", "createdAt", ...fields.map(([label]) => label)]];
+  const add = (type, key, entry) => rows.push([
+    type, key || "", JSON.stringify(entry), entry.createdAt || "",
+    ...fields.map(([, name]) => Array.isArray(entry[name]) ? entry[name].join(" / ") : entry[name] ?? "")
+  ]);
+  loadEntries().forEach((entry) => add("dailyLog", entry.date, entry));
+  loadCollection(WR_STORAGE_KEY).forEach((entry) => add("weeklyReview", entry.weekRange, entry));
+  loadCollection(PATCH_STORAGE_KEY).forEach((entry) => add("systemPatch", entry.startDate, entry));
 
   return rows.map((row) => row.map(toCsvCell).join(",")).join("\n");
 }
@@ -3544,8 +3531,9 @@ function ensureArray(value) {
 }
 
 function toCsvCell(value) {
-  const text = String(value ?? "");
-  if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+  let text = String(value ?? "");
+  if (typeof value === "string" && (/^[\t\r]/.test(text) || /^\s*[=+\-@]/.test(text))) text = `'${text}`;
+  if (text.includes(",") || text.includes("\"") || text.includes("\n") || text.includes("\r")) {
     return `"${text.replace(/"/g, "\"\"")}"`;
   }
   return text;
