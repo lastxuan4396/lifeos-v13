@@ -1,4 +1,4 @@
-// lifeos-shell-v80
+// lifeos-shell-v81
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -484,6 +484,7 @@ function bindEvents() {
     }
     if (event.key === WR_STORAGE_KEY || event.key === null) renderWeeklyAvailability();
     if (event.key === PATCH_STORAGE_KEY || event.key === null) loadCollection(PATCH_STORAGE_KEY);
+    if (event.key === APPLE_SYNC_META_KEY || event.key === null) renderAppleSyncStatus();
     for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY, DOJO_DRAFT_KEY]) {
       if ((event.key === key || event.key === null) && event.newValue !== workflowDraftSnapshots.get(key)) showWorkflowDraftConflict(key);
     }
@@ -1585,7 +1586,7 @@ async function onImportData() {
     const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
     const draftMessage = restoreDrafts ? (drafts ? `将替换当前每日、周复盘和 Patch 草稿；备份中为空的草稿会清除。${Object.prototype.hasOwnProperty.call(drafts, "dojo") ? "训练输入也会按备份恢复。" : "备份不含训练输入，本机训练输入保持不变。"}` : "该备份没有草稿，本机草稿保持不变。") : "本机草稿保持不变。";
     const currentCounts = `每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条`;
-    const issueMessage = unreadableCollections.size ? "\n部分当前记录无法读取，上述数量不完整；导入会覆盖这些原始数据。请先用页面顶部的按钮下载原始数据供恢复。" : "";
+    const issueMessage = unreadableCollections.size ? `\n部分当前数据无法读取；${[STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].some((key) => unreadableCollections.has(key)) ? "上述记录数量不完整；" : ""}导入会覆盖这些原始数据。请先用页面顶部的按钮下载原始数据供恢复。` : "";
     const exportAdvice = unreadableCollections.size ? "确认已保存可用于恢复的原始数据后再继续。" : "建议先导出当前 JSON。";
     const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：${currentCounts}。${issueMessage}\n${draftMessage}\n${exportAdvice}确认覆盖？`);
     if (!ok) return;
@@ -2813,10 +2814,15 @@ function applyAppleAutofillFromUrl() {
     document.getElementById("draftStatus").textContent = "设备数据已填入但草稿保存失败，请保留页面并检查浏览器存储；设备链接仍在。";
     return;
   }
-  try { localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta)); }
-  catch { /* Draft is already saved; metadata is optional. */ }
-  renderAppleSyncStatus(meta);
-  document.getElementById("draftStatus").textContent = "设备数据已填入并保存为草稿，请核对后保存记录。";
+  let metadataSaved = false;
+  try {
+    readAppleSyncMetaStrict();
+    localStorage.setItem(APPLE_SYNC_META_KEY, JSON.stringify(meta));
+    metadataSaved = true;
+  } catch { /* The draft is already saved; preserve any unreadable metadata. */ }
+  if (metadataSaved) renderAppleSyncStatus(meta);
+  else setModuleOutput(el.appleSyncStatus, "设备同步信息未更新；表单数据已保存为草稿，请检查浏览器存储空间、权限和页面提示。", "尚未接收 Apple 自动填充数据");
+  document.getElementById("draftStatus").textContent = metadataSaved ? "设备数据已填入并保存为草稿，请核对后保存记录。" : "设备数据已保存为草稿，但设备同步信息未能保存；请检查存储空间、权限和页面提示。";
 
   if (window.history?.replaceState) {
     window.history.replaceState({}, "", window.location.pathname + window.location.hash);
@@ -2943,10 +2949,24 @@ function hydrateMetricsFromLastAppleSync() {
 
 function loadAppleSyncMeta() {
   try {
-    const raw = localStorage.getItem(APPLE_SYNC_META_KEY);
-    return raw ? JSON.parse(raw) : null;
+    return readAppleSyncMetaStrict();
   } catch {
     return null;
+  }
+}
+
+function readAppleSyncMetaStrict() {
+  try {
+    const raw = localStorage.getItem(APPLE_SYNC_META_KEY);
+    const parsed = raw === null ? null : JSON.parse(raw);
+    if (parsed !== null && (typeof parsed !== "object" || Array.isArray(parsed))) throw new Error("invalid metadata");
+    unreadableCollections.delete(APPLE_SYNC_META_KEY);
+    renderStorageIssue();
+    return parsed;
+  } catch {
+    unreadableCollections.add(APPLE_SYNC_META_KEY);
+    renderStorageIssue();
+    throw new Error("设备同步信息无法读取。原始数据未更改，请先下载原始数据供恢复。");
   }
 }
 
@@ -4168,7 +4188,7 @@ function loadCollection(key) {
 }
 
 function readCollectionStrict(key) {
-  const names = { [STORAGE_KEY]: "每日记录", [WR_STORAGE_KEY]: "周复盘", [PATCH_STORAGE_KEY]: "Patch" };
+  const names = { [STORAGE_KEY]: "每日记录", [WR_STORAGE_KEY]: "周复盘", [PATCH_STORAGE_KEY]: "Patch", [APPLE_SYNC_META_KEY]: "设备同步信息" };
   try {
     const raw = localStorage.getItem(key);
     const parsed = raw === null ? [] : JSON.parse(raw);
@@ -4186,13 +4206,14 @@ function readCollectionStrict(key) {
 function renderStorageIssue() {
   const section = document.getElementById("storageIssue");
   if (!section) return;
-  const names = { [STORAGE_KEY]: "每日记录", [WR_STORAGE_KEY]: "周复盘", [PATCH_STORAGE_KEY]: "Patch" };
+  const names = { [STORAGE_KEY]: "每日记录", [WR_STORAGE_KEY]: "周复盘", [PATCH_STORAGE_KEY]: "Patch", [APPLE_SYNC_META_KEY]: "设备同步信息" };
   section.classList.toggle("hidden", unreadableCollections.size === 0);
   document.getElementById("storageIssueText").textContent = unreadableCollections.size ? `${[...unreadableCollections].map((key) => names[key] || "本地记录").join("、")}无法读取。为避免覆盖，相关保存、常规导出和同步已暂停；请先下载原始数据，再考虑从可靠备份恢复。` : "";
 }
 
 function assertCollectionsReadable() {
   for (const key of [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY]) readCollectionStrict(key);
+  readAppleSyncMetaStrict();
 }
 
 function exportRawRecovery() {
@@ -4286,7 +4307,7 @@ function buildBackupPayload() {
       dailyLogs: readCollectionStrict(STORAGE_KEY),
       weeklyReviews: readCollectionStrict(WR_STORAGE_KEY),
       systemPatches: readCollectionStrict(PATCH_STORAGE_KEY),
-      appleSyncMeta: loadAppleSyncMeta()
+      appleSyncMeta: readAppleSyncMetaStrict()
     }
   };
 }
