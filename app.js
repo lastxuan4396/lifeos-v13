@@ -1,4 +1,4 @@
-// lifeos-shell-v97
+// lifeos-shell-v98
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2146,7 +2146,12 @@ async function performSync(settings, options = {}) {
     }
     // Read local data after the network request so edits made while fetching survive.
     const local = buildBackupPayload();
-    const merged = mergeLocalAndCloud(local, cloud);
+    const merged = mergeLocalAndCloud(local, cloud, { allowDailyConflictChoice: showStatus });
+    if (!syncTargetIsCurrent(settings)) {
+      renderSyncStatus("同步设置已更改；本次未合并或上传，请使用当前设置重新同步。");
+      return;
+    }
+    if (JSON.stringify(buildBackupPayload().data) !== JSON.stringify(local.data)) throw new Error("同步期间本机数据发生变化，本次未合并或上传；请重新同步。");
     applyMergedPayload(merged);
     await pushCloudPayload(settings, merged);
     if (!syncTargetIsCurrent(settings)) {
@@ -2289,20 +2294,15 @@ async function fetchTextWithTimeout(url, options = {}) {
   }
 }
 
-function mergeLocalAndCloud(localPayload, cloudPayload) {
+function mergeLocalAndCloud(localPayload, cloudPayload, options = {}) {
   const local = (localPayload && localPayload.data) ? localPayload.data : {};
   const cloud = (cloudPayload && cloudPayload.data) ? cloudPayload.data : cloudPayload;
 
-  const mergedDaily = mergeByKey(
+  const mergedDaily = mergeDailyRecords(
     ensureArray(local.dailyLogs),
     ensureArray(cloud?.dailyLogs),
-    (item) => item?.date || `${item?.createdAt || ""}|${item?.behavior || ""}`
-  ).sort((a, b) => {
-    if (a.date === b.date) {
-      return (b.createdAt || "").localeCompare(a.createdAt || "");
-    }
-    return String(b.date || "").localeCompare(String(a.date || ""));
-  });
+    options
+  ).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
 
   const mergedWeekly = mergeWeeklyPreservingDuplicates(
     ensureArray(local.weeklyReviews),
@@ -2335,6 +2335,49 @@ function mergeLocalAndCloud(localPayload, cloudPayload) {
 
 function weeklySyncKey(item) {
   return String(item?.weekRange || item?.createdAt || JSON.stringify(item));
+}
+
+function stableRecordJson(value) {
+  return JSON.stringify(value, (_key, item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    return Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]]));
+  });
+}
+
+function dailySavedTime(record) {
+  const value = record?.createdAt;
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return NaN;
+  return Date.parse(value);
+}
+
+function mergeDailyRecords(localList, cloudList, options = {}) {
+  const merged = new Map();
+  const conflicts = new Map();
+  for (const records of [localList, cloudList]) {
+    const seen = new Set();
+    for (const record of records) {
+      const key = record?.date;
+      if (typeof key !== "string" || !key || seen.has(key)) throw new Error("每日记录日期缺失或重复；同步未更改数据，请先导出备份并检查记录。");
+      seen.add(key);
+      const existing = merged.get(key);
+      if (!existing) { merged.set(key, record); continue; }
+      if (stableRecordJson(existing) === stableRecordJson(record)) continue;
+      const oldTime = dailySavedTime(existing);
+      const newTime = dailySavedTime(record);
+      if (!Number.isFinite(oldTime) || !Number.isFinite(newTime) || oldTime === newTime) conflicts.set(key, {local: existing, cloud: record});
+      else if (newTime > oldTime) merged.set(key, record);
+    }
+  }
+  if (conflicts.size) {
+    const dates = [...conflicts.keys()].slice(0, 3).join("、");
+    const message = `每日记录 ${dates}${conflicts.size > 3 ? "等" : ""} 在两端内容不同，但保存时间缺失、无效或相同。同步未更改数据；请先在各设备导出备份，再在要保留版本的设备上手动同步并核对选择。`;
+    if (!options.allowDailyConflictChoice) throw new Error(message);
+    for (const [date, pair] of conflicts) {
+      const describe = (record) => `行为：${shortenIntentText(record.behavior, 100) || "（空）"}\n结果：${shortenIntentText(record.result, 100) || "（空）"}`;
+      if (!confirm(`${date} 的两端记录内容不同，无法按时间判断新旧。以下仅显示部分摘要；意图、指标和输出等其他内容也会被覆盖。建议先在各设备导出 JSON 备份，核对完整记录。\n\n本机：\n${describe(pair.local)}\n\n云端：\n${describe(pair.cloud)}\n\n确定：用本机这条覆盖云端同日记录。\n取消：停止同步，两端记录不变。`)) throw new Error(message);
+    }
+  }
+  return [...merged.values()];
 }
 
 function mergeAppendOnlyRecords(localList, cloudList) {
