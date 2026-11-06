@@ -1,4 +1,4 @@
-// lifeos-shell-v28
+// lifeos-shell-v29
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -911,6 +911,10 @@ function clearWorkflowDraft(key, statusId, badgeId) {
 function onWrSubmit(event) {
   event.preventDefault();
   const data = getWrData();
+  if (data.bObserved !== null && (data.bObserved < data.bDone || data.bObserved > data.dlDone)) {
+    alert("B 可判断天数应不少于 B 执行天数，且不超过 DL 完成天数。");
+    return;
+  }
   const entries = loadCollection(WR_STORAGE_KEY);
   if (entries.some((item) => item.weekRange === data.weekRange) && !confirm(`周期 ${data.weekRange} 已有周复盘，继续将覆盖该周期记录。是否继续？`)) return;
 
@@ -981,6 +985,7 @@ function onWrAutofill() {
   if (el.wrBDone) {
     el.wrBDone.value = String(snapshot.b);
   }
+  document.getElementById("wrBObserved").value = String(snapshot.bObserved);
   if (el.wrRuinDays) {
     el.wrRuinDays.value = String(snapshot.ruinDays);
   }
@@ -2468,6 +2473,7 @@ function getWrData() {
     oneChange: String(fd.get("wrOneChange") || "").trim(),
     dlDone: toInt(fd.get("wrDlDone"), 0),
     bDone: toInt(fd.get("wrBDone"), 0),
+    bObserved: toNumber(fd.get("wrBObserved")),
     ruinDays: toInt(fd.get("wrRuinDays"), 0),
     codeS: toInt(fd.get("wrCodeS"), 0),
     codeT: toInt(fd.get("wrCodeT"), 0),
@@ -2768,6 +2774,7 @@ function buildWrOutput(data) {
   const score = {
     dl: clamp(data.dlDone, 0, 7),
     b: clamp(data.bDone, 0, 7),
+    bObserved: data.bObserved == null ? null : clamp(data.bObserved, 0, 7),
     ruinDays: clamp(data.ruinDays, 0, 7),
     codeCount: {
       S: clamp(data.codeS, 0, 7),
@@ -2779,7 +2786,7 @@ function buildWrOutput(data) {
     outputPass: data.outputPass
   };
 
-  const mechanism = inferMechanism(score.dl, score.b, score.ruinDays, score.codeCount, score.outputPass);
+  const mechanism = inferMechanism(score.bObserved ?? 0, score.b, score.ruinDays, score.codeCount, score.outputPass);
   const nextChange = data.oneChange || inferNextChange(score.dl, score.b, score.codeCount);
 
   const weeklyMode = score.ruinDays >= 2
@@ -2804,7 +2811,7 @@ function buildWrOutput(data) {
     `6) 下周唯一改动：${nextChange}`,
     "",
     "[Scoreboard-5 v1.3]",
-    `DL完成 ${score.dl}/7 | B执行 ${score.b}/7 | 红灯天数 ${score.ruinDays}/7（主码：S${score.codeCount.S} T${score.codeCount.T} P${score.codeCount.P}）`,
+    `DL完成 ${score.dl}/7 | B执行 ${score.b}/7（可判断 ${score.bObserved ?? "未知"} 天） | 红灯天数 ${score.ruinDays}/7（主码：S${score.codeCount.S} T${score.codeCount.T} P${score.codeCount.P}）`,
     `Sleep底线 ${formatScoreState(score.sleepPass)} | Training ${formatScoreState(score.trainingPass)} | Output ${formatScoreState(score.outputPass)}`,
     `机制一句话：本周主要被 ${mechanism} 驱动`,
     `下周唯一改动：只改 ${nextChange}`,
@@ -3137,7 +3144,7 @@ function buildScoreboard(entries) {
   const snap = getScoreSnapshot(entries);
 
   return [
-    `DL完成 ${snap.dl}/7 | B执行 ${snap.b}/7 | 红灯天数 ${snap.ruinDays}/7（主码：S${snap.codeCount.S} T${snap.codeCount.T} P${snap.codeCount.P}）`,
+    `DL完成 ${snap.dl}/7 | B执行 ${snap.b}/7（可判断 ${snap.bObserved} 天） | 红灯天数 ${snap.ruinDays}/7（主码：S${snap.codeCount.S} T${snap.codeCount.T} P${snap.codeCount.P}）`,
     `Sleep底线 ${formatScoreState(snap.sleepPass)} | Training ${formatScoreState(snap.trainingPass)} | Output ${formatScoreState(snap.outputPass)}`,
     `机制一句话：本周主要被 ${snap.mechanism} 驱动`,
     `下周唯一改动：只改 ${snap.nextChange}`
