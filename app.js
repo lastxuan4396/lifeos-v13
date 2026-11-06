@@ -1,4 +1,4 @@
-// lifeos-shell-v19
+// lifeos-shell-v20
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -635,6 +635,7 @@ function loadDailyRecord(date, focusForm = false) {
 }
 
 function saveDailyDraft() {
+  document.getElementById("outputPending").classList.toggle("hidden", !latestOutputText);
   const fields = Array.from(el.form.elements)
     .filter((field) => field.name && !field.disabled && field.type !== "file")
     .map((field) => ({ name: field.name, type: field.type, value: field.value, checked: field.checked }));
@@ -666,6 +667,7 @@ function discardDailyDraft() {
   renderEngineSignal();
   renderSleepRuinAssist();
   document.getElementById("draftStatus").textContent = "未提交内容已清空，已保存的记录不受影响。";
+  document.getElementById("outputPending").classList.add("hidden");
 }
 
 function restoreDailyDraft() {
@@ -2848,6 +2850,10 @@ function renderAll(entries, outputObj, outputDate) {
     el.output.classList.add("empty");
     latestOutputText = "";
   }
+
+  let draftPresent = false;
+  try { draftPresent = localStorage.getItem(DRAFT_KEY) !== null; } catch { /* storage may be unavailable */ }
+  document.getElementById("outputPending").classList.toggle("hidden", !(draftPresent && latestOutputText));
 
   el.scoreboard.textContent = buildScoreboard(entries);
   renderTodayAction(entries);
