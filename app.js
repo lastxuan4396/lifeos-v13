@@ -1,4 +1,4 @@
-// lifeos-shell-v82
+// lifeos-shell-v83
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1449,7 +1449,7 @@ function onPatchSubmit(event) {
     outputText,
     createdAt: new Date().toISOString()
   });
-  try { saveCollection(PATCH_STORAGE_KEY, entries.slice(0, 30)); } catch {
+  try { saveCollection(PATCH_STORAGE_KEY, entries); } catch {
     document.getElementById("patchDraftStatus").textContent = "保存失败，请检查浏览器存储空间；请勿关闭页面，并先复制当前内容。";
     return;
   }
