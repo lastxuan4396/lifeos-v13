@@ -1,4 +1,4 @@
-// lifeos-shell-v93
+// lifeos-shell-v94
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1887,6 +1887,11 @@ function saveSyncSettings(settings) {
   }));
 }
 
+function syncTargetIsCurrent(settings) {
+  const current = loadSyncSettings();
+  return Boolean(current.token && current.gistId && current.token === settings.token && current.gistId === settings.gistId);
+}
+
 function getSyncSettingsFromForm() {
   const current = loadSyncSettings();
   const tokenInput = String(el.syncToken?.value || "").trim();
@@ -2059,12 +2064,24 @@ async function performSync(settings, options = {}) {
   const showStatus = options.showStatus !== false;
 
   try {
+    if (!syncTargetIsCurrent(settings)) {
+      renderSyncStatus("同步设置已更改；旧云仓的同步未开始，请使用当前设置重新同步。");
+      return;
+    }
     const cloud = await fetchCloudPayload(settings);
+    if (!syncTargetIsCurrent(settings)) {
+      renderSyncStatus("同步设置已更改；旧云仓的数据未合并或上传，请使用当前设置重新同步。");
+      return;
+    }
     // Read local data after the network request so edits made while fetching survive.
     const local = buildBackupPayload();
     const merged = mergeLocalAndCloud(local, cloud);
     applyMergedPayload(merged);
     await pushCloudPayload(settings, merged);
+    if (!syncTargetIsCurrent(settings)) {
+      renderSyncStatus("同步设置已更改；旧云仓的上传已完成，但当前云仓尚未确认同步，请使用当前设置重新同步。");
+      return;
+    }
     if (JSON.stringify(buildBackupPayload().data) !== JSON.stringify(merged.data)) {
       showSyncNotice(true);
       document.getElementById("syncNoticeText").textContent = "同步期间本地数据又发生变化，新内容尚未包含在本次上传中。请再次同步。";
@@ -2085,6 +2102,10 @@ async function performSync(settings, options = {}) {
       renderSyncStatus(lines.join("\n"));
     }
   } catch (error) {
+    if (!syncTargetIsCurrent(settings)) {
+      renderSyncStatus("同步设置已更改；旧云仓的同步未确认完成，请使用当前设置重新同步。");
+      return;
+    }
     showSyncNotice(true);
     if (showStatus) {
       renderSyncStatus(`${reason}失败：${String(error?.message || error)}`);
