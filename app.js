@@ -1,4 +1,4 @@
-// lifeos-shell-v49
+// lifeos-shell-v50
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -213,6 +213,7 @@ function init() {
     applyAppleAutofillFromUrl();
     hydrateMetricsFromLastAppleSync();
   }
+  if (el.date) el.date.dataset.previousDate = el.date.value;
   toggleRuinCodes();
   renderAll(loadEntries());
   renderWorkflowPanels();
@@ -407,7 +408,7 @@ function bindEvents() {
     if (!confirm("切换日期会保留当前表单内容。请确认这些内容适用于今天，并重新核对昨日 B、红灯和指标。是否继续？")) return;
     el.date.value = today;
     el.date.dispatchEvent(new Event("change", { bubbles: true }));
-    document.getElementById("dateSwitchHint").textContent = "日期已切换到今天，请重新核对表单内容。";
+    document.getElementById("dateSwitchHint").textContent = "日期已切换到今天，请重新选择昨日 B，并核对其他表单内容。";
   });
   document.getElementById("discardDailyDraft")?.addEventListener("click", discardDailyDraft);
   document.getElementById("keepThisDailyDraft")?.addEventListener("click", () => {
@@ -449,13 +450,16 @@ function bindEvents() {
 
   if (el.date) {
     el.date.addEventListener("change", () => {
+      const changedDate = el.date.dataset.previousDate !== el.date.value;
+      if (changedDate) el.form.querySelectorAll("input[name='bExecuted']").forEach((radio) => { radio.checked = false; });
+      el.date.dataset.previousDate = el.date.value;
       const hasContent = Array.from(el.form.elements).some((field) => {
         if (!field.name || field.name === "date") return false;
         if (field.type === "radio") return field.checked && (field.name !== "ruin" || field.value !== "0");
         if (field.type === "checkbox") return field.checked;
         return ["INPUT", "TEXTAREA", "SELECT"].includes(field.tagName) && String(field.value || "").trim() !== "";
       });
-      document.getElementById("dateSwitchHint").textContent = hasContent ? "日期已更改，表单内容仍保留；请核对昨日 B、红灯和指标是否适用于所选日期。" : "";
+      document.getElementById("dateSwitchHint").textContent = changedDate ? "日期已更改，请重新选择昨日 B；其他内容仍保留，请核对红灯和指标。" : (hasContent ? "请核对红灯和指标是否适用于所选日期。" : "");
       renderYesterdayBContext();
       renderQuickFillCard();
       renderIntentAssist();
@@ -746,6 +750,7 @@ function loadDailyRecord(date, focusForm = false) {
     return;
   }
   el.date.value = record.date;
+  el.date.dataset.previousDate = record.date;
   document.getElementById("dateSwitchHint").textContent = "";
   for (const field of el.form.elements) {
     if (!field.name || field.name === "date") continue;
@@ -814,6 +819,7 @@ function discardDailyDraft() {
   }
   el.form.reset();
   el.date.value = localDateISO(new Date());
+  el.date.dataset.previousDate = el.date.value;
   document.getElementById("dateSwitchHint").textContent = "";
   toggleRuinCodes();
   renderDailyRecordAvailability();
@@ -858,6 +864,7 @@ function loadOtherDailyDraft() {
     el.form.reset();
     el.date.value = localDateISO(new Date());
     restoreDailyDraft();
+    el.date.dataset.previousDate = el.date.value;
     toggleRuinCodes();
     renderAll(loadEntries());
     renderYesterdayBContext();
