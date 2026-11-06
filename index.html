@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v53 -->
+<!-- lifeos-shell-v54 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v53.css">
+  <link rel="stylesheet" href="./styles-v54.css">
 </head>
 <body>
   <main class="page">
@@ -38,9 +38,11 @@
       <h2 id="todayActionTitle">今天要做的 B</h2>
       <p id="todayActionSource" class="module-note"></p>
       <pre id="todayActionSteps" class="exec-focus"></pre>
+      <p id="todayRecordState" class="module-note"></p>
       <div class="actions">
         <button id="markTodayActionDone" type="button" class="primary">已完成，填写记录</button>
         <button id="useTodayAction" type="button">用今天的行动填写行为</button>
+        <button id="editTodayRecord" type="button" class="hidden">载入并编辑今日记录</button>
         <button id="copyTodayAction" type="button">复制今天的行动</button>
       </div>
       <p id="todayActionHint" class="module-note" role="status"></p>
@@ -659,6 +661,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v53.js" defer></script>
+  <script src="./app-v54.js" defer></script>
 </body>
 </html>

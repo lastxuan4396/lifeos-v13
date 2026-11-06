@@ -1,4 +1,4 @@
-// lifeos-shell-v53
+// lifeos-shell-v54
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -419,6 +419,10 @@ function bindEvents() {
   document.getElementById("loadOtherDailyDraft")?.addEventListener("click", loadOtherDailyDraft);
   window.addEventListener("storage", (event) => {
     if ((event.key === DRAFT_KEY || event.key === null) && event.newValue !== dailyDraftSnapshot) showDailyDraftConflict();
+    if (event.key === STORAGE_KEY || event.key === null) {
+      renderTodayAction(loadEntries());
+      renderDailyRecordAvailability();
+    }
     for (const key of [WR_DRAFT_KEY, PATCH_DRAFT_KEY]) {
       if ((event.key === key || event.key === null) && event.newValue !== workflowDraftSnapshots.get(key)) showWorkflowDraftConflict(key);
     }
@@ -432,6 +436,10 @@ function bindEvents() {
   });
   document.getElementById("useTodayAction")?.addEventListener("click", () => useTodayAction(false));
   document.getElementById("markTodayActionDone")?.addEventListener("click", () => useTodayAction(true));
+  document.getElementById("editTodayRecord")?.addEventListener("click", () => {
+    loadDailyRecord(localDateISO(new Date()), true);
+    renderTodayAction(loadEntries());
+  });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       renderTodayAction(loadEntries());
@@ -3460,12 +3468,18 @@ function renderAll(entries, outputObj, outputDate) {
 
 function renderTodayAction(entries) {
   const section = document.getElementById("todayAction");
-  const yesterday = shiftDateISO(localDateISO(new Date()), -1);
+  const today = localDateISO(new Date());
+  const yesterday = shiftDateISO(today, -1);
   const entry = entries.find((item) => item.date === yesterday);
+  const todayEntry = entries.find((item) => item.date === today);
   const steps = Array.isArray(entry?.output?.b) ? entry.output.b.filter((step) => typeof step === "string" && step.trim()) : [];
   section.classList.toggle("hidden", steps.length === 0);
   document.getElementById("todayActionSource").textContent = steps.length ? `来自 ${yesterday} 的记录` : "";
   document.getElementById("todayActionSteps").textContent = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
+  document.getElementById("todayRecordState").textContent = todayEntry ? `今天已有记录，昨日 B：${todayEntry.bExecuted === 1 ? "已执行" : todayEntry.bExecuted === 0 ? "未执行" : "无可参考"}。如需调整，请载入今日记录。` : "";
+  document.getElementById("markTodayActionDone").classList.toggle("hidden", !!todayEntry);
+  document.getElementById("useTodayAction").classList.toggle("hidden", !!todayEntry);
+  document.getElementById("editTodayRecord").classList.toggle("hidden", !todayEntry);
 }
 
 function useTodayAction(markDone = false) {
@@ -3477,7 +3491,13 @@ function useTodayAction(markDone = false) {
     el.form.scrollIntoView({ block: "start", behavior: "auto" });
     return;
   }
-  const yesterday = loadEntries().find((item) => item.date === shiftDateISO(today, -1));
+  const entries = loadEntries();
+  if (entries.some((item) => item.date === today)) {
+    renderTodayAction(entries);
+    hint.textContent = "今天已有记录，请先载入今日记录再修改。";
+    return;
+  }
+  const yesterday = entries.find((item) => item.date === shiftDateISO(today, -1));
   const steps = Array.isArray(yesterday?.output?.b) ? yesterday.output.b : [];
   const step = steps.find((item) => typeof item === "string" && item.trim() && !item.trim().startsWith("锚点：")) || getPrimaryBStep(yesterday);
   if (!step) {
