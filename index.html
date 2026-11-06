@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v48 -->
+<!-- lifeos-shell-v49 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v48.css">
+  <link rel="stylesheet" href="./styles-v49.css">
 </head>
 <body>
   <main class="page">
@@ -411,6 +411,11 @@ RUIN：0
         <summary>WR-10（每周 10 分钟）<span id="wrDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="wrForm" class="mini-form" autocomplete="off">
           <p id="wrDraftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
+          <div id="wrDraftConflict" class="hint-card hidden" role="status">
+            <strong>另一标签页更改了周复盘草稿</strong>
+            <p class="hint-copy">请选择保留本页内容，或载入另一份草稿。</p>
+            <div class="actions"><button id="keepWrDraft" type="button">保留本页内容</button><button id="loadWrDraft" type="button">载入另一份草稿</button></div>
+          </div>
           <label>
             周期
             <input id="wrWeekRange" name="wrWeekRange" type="text" placeholder="Week of 2026-03-09 ~ 2026-03-15" required>
@@ -519,6 +524,11 @@ RUIN：0
         <summary>System Patch（每两周 5-10 分钟，只改一处）<span id="patchDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="patchForm" class="mini-form" autocomplete="off">
           <p id="patchDraftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
+          <div id="patchDraftConflict" class="hint-card hidden" role="status">
+            <strong>另一标签页更改了 Patch 草稿</strong>
+            <p class="hint-copy">请选择保留本页内容，或载入另一份草稿。</p>
+            <div class="actions"><button id="keepPatchDraft" type="button">保留本页内容</button><button id="loadPatchDraft" type="button">载入另一份草稿</button></div>
+          </div>
           <label>
             系统最卡点（1条）
             <input id="patchBottleneck" name="patchBottleneck" type="text" placeholder="例：总在晚间才想起写 DL" required>
@@ -647,6 +657,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v48.js" defer></script>
+  <script src="./app-v49.js" defer></script>
 </body>
 </html>
