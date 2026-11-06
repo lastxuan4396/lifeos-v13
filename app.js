@@ -1,4 +1,4 @@
-// lifeos-shell-v44
+// lifeos-shell-v45
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1405,6 +1405,12 @@ async function performSync(settings, options = {}) {
     const merged = mergeLocalAndCloud(local, cloud);
     applyMergedPayload(merged);
     await pushCloudPayload(settings, merged);
+    if (JSON.stringify(buildBackupPayload().data) !== JSON.stringify(merged.data)) {
+      showSyncNotice(true);
+      document.getElementById("syncNoticeText").textContent = "同步期间本地数据又发生变化，新内容尚未包含在本次上传中。请再次同步。";
+      renderSyncStatus(`${reason}已上传开始时的数据，但同步期间又有本地更改。请再次同步。`);
+      return;
+    }
     showSyncNotice(false);
 
     if (showStatus) {
