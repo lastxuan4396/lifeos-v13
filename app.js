@@ -293,6 +293,10 @@ function bindEvents() {
     details.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   document.getElementById("loadDailyRecord")?.addEventListener("click", () => loadDailyRecord(el.date.value));
+  document.getElementById("historySearch")?.addEventListener("input", () => {
+    historyLimit = 12;
+    renderHistory(loadEntries());
+  });
   document.getElementById("historyMore")?.addEventListener("click", () => {
     historyLimit += 12;
     renderHistory(loadEntries());
@@ -3006,12 +3010,16 @@ function renderHistory(entries) {
   const count = document.getElementById("historyCount");
   const more = document.getElementById("historyMore");
   const less = document.getElementById("historyLess");
-  const sorted = entries.slice().sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+  const query = document.getElementById("historySearch").value.trim().toLocaleLowerCase();
+  const sorted = entries.filter((entry) => [entry.date, entry.behavior, entry.result]
+    .some((value) => String(value ?? "").toLocaleLowerCase().includes(query)))
+    .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
   more.classList.toggle("hidden", sorted.length <= historyLimit);
   less.classList.toggle("hidden", historyLimit <= 12 || sorted.length <= 12);
   count.textContent = sorted.length ? `显示 ${Math.min(historyLimit, sorted.length)} / ${sorted.length} 条` : "";
-  if (entries.length === 0) {
-    el.history.textContent = "暂无记录";
+  if (sorted.length === 0) {
+    el.history.textContent = entries.length === 0 ? "暂无记录" : "没有找到匹配的记录。";
+    count.textContent = entries.length && query ? "匹配 0 条" : "";
     return;
   }
 
