@@ -1,4 +1,4 @@
-// lifeos-shell-v31
+// lifeos-shell-v32
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -399,7 +399,13 @@ function bindEvents() {
 
   if (el.date) {
     el.date.addEventListener("change", () => {
-      document.getElementById("dateSwitchHint").textContent = "";
+      const hasContent = Array.from(el.form.elements).some((field) => {
+        if (!field.name || field.name === "date") return false;
+        if (field.type === "radio") return field.checked && (field.name !== "ruin" || field.value !== "0");
+        if (field.type === "checkbox") return field.checked;
+        return ["INPUT", "TEXTAREA", "SELECT"].includes(field.tagName) && String(field.value || "").trim() !== "";
+      });
+      document.getElementById("dateSwitchHint").textContent = hasContent ? "日期已更改，表单内容仍保留；请核对昨日 B、红灯和指标是否适用于所选日期。" : "";
       renderYesterdayBContext();
       renderQuickFillCard();
       renderIntentAssist();
