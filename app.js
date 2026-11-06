@@ -1,4 +1,4 @@
-// lifeos-shell-v65
+// lifeos-shell-v66
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1686,7 +1686,12 @@ function renderSyncStatus(overrideMessage) {
 
 function onSyncSaveSettings() {
   const settings = getSyncSettingsFromForm();
-  saveSyncSettings(settings);
+  try {
+    saveSyncSettings(settings);
+  } catch {
+    renderSyncStatus("同步配置未能保存在当前浏览器。请检查存储空间或权限，表单内容仍在；解决后可重新保存。");
+    return;
+  }
   const lines = [
     "同步配置已保存",
     `Gist ID：${settings.gistId || "(未填)"}`,
@@ -1711,7 +1716,13 @@ async function onSyncInitCloud() {
     const payload = buildBackupPayload();
     const gistId = await createCloudGist(settings.token, payload);
     const next = { ...settings, gistId };
-    saveSyncSettings(next);
+    el.syncGistId.value = gistId;
+    try {
+      saveSyncSettings(next);
+    } catch {
+      renderSyncStatus(`云仓已创建，但配置未能保存在当前浏览器。\nGist ID：${gistId}\n请先记下此 ID，再检查浏览器存储空间或权限，解决后点击“保存同步配置”。`);
+      return;
+    }
     hydrateSyncSettingsForm();
     renderSyncStatus(`初始化完成：已创建云仓\nGist ID：${gistId}\n现在可点“同步现在（先拉后推）”。`);
   } catch (error) {
@@ -1727,7 +1738,12 @@ async function onSyncNow() {
     alert("先填写 Token 和 Gist ID，或点“初始化云仓”。");
     return;
   }
-  saveSyncSettings(settings);
+  try {
+    saveSyncSettings(settings);
+  } catch {
+    renderSyncStatus("同步未开始：配置未能保存在当前浏览器。请检查存储空间或权限后重试；表单内容仍在。");
+    return;
+  }
   await syncNowInternal(settings, { reason: "手动同步", showStatus: true });
 }
 
