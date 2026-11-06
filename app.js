@@ -1,4 +1,4 @@
-// lifeos-shell-v67
+// lifeos-shell-v68
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -528,8 +528,10 @@ function bindEvents() {
         alert("先提交一次 DL-30，才有可复制的 A/B/C/D 输出。");
         return;
       }
-      if (hasPendingOutput() && !confirm("表单有未提交内容。复制的是上次保存的 A/B/C/D，不包含本次修改。是否继续？")) return;
-      document.getElementById("copyNotice").textContent = hasPendingOutput() ? "复制的是上次保存的结果。" : "";
+      const pending = hasPendingOutput();
+      const external = hasExternalOutputChange();
+      if ((pending || external) && !confirm(`${pending ? "表单有未提交内容。" : ""}${external ? "另一标签页更改了记录，当前结果可能已过期。" : ""}复制的是页面当前显示的 A/B/C/D。是否继续？`)) return;
+      document.getElementById("copyNotice").textContent = pending || external ? "复制的是页面当前显示的结果，请核对日期与内容。" : "";
       copyWithFeedback(latestOutputText, el.copyOutput, "复制 A/B/C/D");
     });
   }
@@ -537,8 +539,9 @@ function bindEvents() {
   if (el.copyLifeOS) {
     el.copyLifeOS.addEventListener("click", () => {
       const pending = hasPendingOutput();
-      const packet = buildLifeOSPacket(getFormData(), pending ? "" : latestOutputText);
-      document.getElementById("copyNotice").textContent = pending ? "复制内容使用当前表单，未包含上次保存的旧结果。" : "";
+      const external = hasExternalOutputChange();
+      const packet = buildLifeOSPacket(getFormData(), pending || external ? "" : latestOutputText);
+      document.getElementById("copyNotice").textContent = pending || external ? "复制内容使用当前表单，未包含可能过期的结果。" : "";
       copyWithFeedback(packet, el.copyLifeOS, "复制给 LifeOS");
     });
   }
@@ -782,6 +785,10 @@ function bindEvents() {
 
 function hasPendingOutput() {
   return !document.getElementById("outputPending").classList.contains("hidden");
+}
+
+function hasExternalOutputChange() {
+  return !document.getElementById("outputExternalNotice").classList.contains("hidden");
 }
 
 function renderDailyRecordAvailability() {
