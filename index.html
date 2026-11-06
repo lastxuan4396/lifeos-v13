@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v83 -->
+<!-- lifeos-shell-v84 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v83.css">
+  <link rel="stylesheet" href="./styles-v84.css">
 </head>
 <body>
   <main class="page">
@@ -565,6 +565,11 @@ RUIN：0
             <div class="actions"><button id="keepPatchDraft" type="button">保留本页内容</button><button id="loadPatchDraft" type="button">载入另一份草稿</button></div>
           </div>
           <label>
+            已保存的 Patch
+            <select id="savedPatchPicker"><option value="">暂无已保存的 Patch</option></select>
+          </label>
+          <p id="loadPatchHint" class="module-note" role="status">选择历史记录可载入；重新生成会新增一条记录，不会覆盖原记录。</p>
+          <label>
             系统最卡点（1条）
             <input id="patchBottleneck" name="patchBottleneck" type="text" placeholder="例：总在晚间才想起写 DL" required>
           </label>
@@ -706,6 +711,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v83.js" defer></script>
+  <script src="./app-v84.js" defer></script>
 </body>
 </html>

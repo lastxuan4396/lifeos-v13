@@ -1,4 +1,4 @@
-// lifeos-shell-v83
+// lifeos-shell-v84
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -483,7 +483,7 @@ function bindEvents() {
       document.getElementById("outputExternalNotice").classList.remove("hidden");
     }
     if (event.key === WR_STORAGE_KEY || event.key === null) renderWeeklyAvailability();
-    if (event.key === PATCH_STORAGE_KEY || event.key === null) loadCollection(PATCH_STORAGE_KEY);
+    if (event.key === PATCH_STORAGE_KEY || event.key === null) renderPatchAvailability();
     if (event.key === WR_STORAGE_KEY || event.key === null) markWorkflowOutputStale(WR_DRAFT_KEY);
     if (event.key === PATCH_STORAGE_KEY || event.key === null) markWorkflowOutputStale(PATCH_DRAFT_KEY);
     if (event.key === APPLE_SYNC_META_KEY || event.key === null) renderAppleSyncStatus();
@@ -742,8 +742,17 @@ function bindEvents() {
 
   if (el.patchForm) {
     el.patchForm.addEventListener("submit", onPatchSubmit);
-    ["input", "change"].forEach((eventName) => el.patchForm.addEventListener(eventName, () => saveWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge")));
+    ["input", "change"].forEach((eventName) => el.patchForm.addEventListener(eventName, (event) => {
+      if (event.target.id !== "savedPatchPicker") saveWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
+    }));
   }
+  document.getElementById("savedPatchPicker")?.addEventListener("change", (event) => {
+    event.stopPropagation();
+    const picker = event.currentTarget;
+    const option = picker.selectedOptions[0];
+    if (option?.value !== "") loadPatchRecord(Number(option.value), option.dataset.signature);
+    picker.value = "";
+  });
 
   if (el.copyPatchOutput) {
     el.copyPatchOutput.addEventListener("click", () => {
@@ -1437,6 +1446,42 @@ function suggestExperiment(period, source) {
   document.getElementById("experimentHint").textContent = `参考${source} ${period.start} 至 ${period.end}：${reason}这只是草案，请按自己的情况修改。${saved ? "草稿已保存。" : "草稿尚未保存，请查看提示。"}`;
 }
 
+function renderPatchAvailability() {
+  const records = loadCollection(PATCH_STORAGE_KEY);
+  const picker = document.getElementById("savedPatchPicker");
+  picker.replaceChildren(new Option(records.length ? "选择已保存的 Patch" : "暂无已保存的 Patch", ""));
+  records.forEach((record, index) => {
+    const option = new Option(`${record.startDate || "日期未知"} · ${shortenIntentText(record.fix, 45) || "未填写改动"}`, String(index));
+    option.dataset.signature = JSON.stringify(record);
+    picker.add(option);
+  });
+  picker.disabled = records.length === 0;
+}
+
+function loadPatchRecord(index, signature) {
+  const record = loadCollection(PATCH_STORAGE_KEY)[index];
+  const hint = document.getElementById("loadPatchHint");
+  if (!record || JSON.stringify(record) !== signature) {
+    renderPatchAvailability();
+    hint.textContent = "记录已变化，请重新选择；当前输入未更改。";
+    return;
+  }
+  try {
+    if ((localStorage.getItem(PATCH_DRAFT_KEY) !== null || workflowDraftSaveFailed.has(PATCH_DRAFT_KEY)) && !confirm("载入记录会替换当前未提交的 Patch 内容。是否继续？")) return;
+  } catch {
+    hint.textContent = "无法读取草稿，暂未载入记录。";
+    return;
+  }
+  for (const [id, key] of [["patchBottleneck", "bottleneck"], ["patchBreak", "breakPoint"], ["patchFix", "fix"], ["patchStartDate", "startDate"]]) {
+    document.getElementById(id).value = record[key] ?? "";
+  }
+  latestPatchOutputText = typeof record.outputText === "string" ? record.outputText : "";
+  setModuleOutput(el.patchOutput, latestPatchOutputText, "此记录没有保存的 Patch 结果。");
+  const saved = saveWorkflowDraft(el.patchForm, PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
+  document.getElementById("patchOutputPending").classList.toggle("hidden", !latestPatchOutputText || buildPatchOutput(getPatchData()) === latestPatchOutputText);
+  hint.textContent = `已载入历史记录；重新生成会新增一条记录，不会覆盖原记录。${saved ? "草稿已保存。" : "草稿尚未保存，请查看提示。"}`;
+}
+
 function onPatchSubmit(event) {
   event.preventDefault();
   const data = getPatchData();
@@ -1457,6 +1502,7 @@ function onPatchSubmit(event) {
   setModuleOutput(el.patchOutput, outputText, "提交 System Patch 后显示新规则（<=3条）");
   document.getElementById("patchOutputPending").classList.add("hidden");
   clearWorkflowDraft(PATCH_DRAFT_KEY, "patchDraftStatus", "patchDraftBadge");
+  renderPatchAvailability();
   void maybeAutoSync("Patch");
 }
 
@@ -3881,6 +3927,7 @@ function renderWorkflowPanels() {
   const wrEntries = loadCollection(WR_STORAGE_KEY);
   const patchEntries = loadCollection(PATCH_STORAGE_KEY);
   renderWeeklyAvailability();
+  renderPatchAvailability();
 
   if (wrEntries[0]?.outputText) {
     latestWrOutputText = wrEntries[0].outputText;
