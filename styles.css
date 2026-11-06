@@ -43,6 +43,10 @@ body.quick-mode .help-card {
   padding: 12px 14px;
 }
 
+#todayAction {
+  margin-bottom: 16px;
+}
+
 .eyebrow {
   margin: 0;
   letter-spacing: 0.08em;

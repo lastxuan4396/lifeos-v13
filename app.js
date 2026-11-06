@@ -293,6 +293,12 @@ function bindEvents() {
     details.scrollIntoView({ behavior: "smooth", block: "start" });
   });
   document.getElementById("loadDailyRecord")?.addEventListener("click", () => loadDailyRecord(el.date.value));
+  document.getElementById("copyTodayAction")?.addEventListener("click", (event) => {
+    copyWithFeedback(document.getElementById("todayActionSteps").textContent, event.currentTarget, "复制今天的行动");
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) renderTodayAction(loadEntries());
+  });
   document.getElementById("historySearch")?.addEventListener("input", () => {
     historyLimit = 12;
     renderHistory(loadEntries());
@@ -2797,6 +2803,7 @@ function renderAll(entries, outputObj, outputDate) {
   }
 
   el.scoreboard.textContent = buildScoreboard(entries);
+  renderTodayAction(entries);
   renderPatchReminder(entries);
   renderHistory(entries);
   renderDailyRecordAvailability();
@@ -2804,6 +2811,16 @@ function renderAll(entries, outputObj, outputDate) {
   renderIntentAssist();
   renderEngineSignal();
   renderSleepRuinAssist();
+}
+
+function renderTodayAction(entries) {
+  const section = document.getElementById("todayAction");
+  const yesterday = shiftDateISO(localDateISO(new Date()), -1);
+  const entry = entries.find((item) => item.date === yesterday);
+  const steps = Array.isArray(entry?.output?.b) ? entry.output.b.filter((step) => typeof step === "string" && step.trim()) : [];
+  section.classList.toggle("hidden", steps.length === 0);
+  document.getElementById("todayActionSource").textContent = steps.length ? `来自 ${yesterday} 的记录` : "";
+  document.getElementById("todayActionSteps").textContent = steps.map((step, index) => `${index + 1}. ${step}`).join("\n");
 }
 
 function renderPatchReminder(entries) {
