@@ -1,10 +1,22 @@
 // Cache only the static app shell; personal records remain in localStorage.
 const CACHE_PREFIX = `lifeos-shell-${encodeURIComponent(self.registration.scope)}-`;
-const CACHE_NAME = `${CACHE_PREFIX}v16`;
+const CACHE_NAME = `${CACHE_PREFIX}v17`;
+const SHELL_MARKER = "lifeos-shell-v17";
 const shellUrls = ["./", "./index.html", "./styles.css", "./app.js"].map((path) => new URL(path, self.registration.scope).href);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(shellUrls)));
+  event.waitUntil((async () => {
+    const responses = await Promise.all(shellUrls.map((url) => fetch(url, { cache: "reload" })));
+    if (responses.some((response) => !response.ok)) throw new Error("Unable to load app shell");
+    const [root, index, , script] = await Promise.all(responses.map((response) => response.clone().text()));
+    if (![root, index, script].every((text) => text.includes(SHELL_MARKER))) throw new Error("App shell versions do not match");
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.all(shellUrls.map((url, i) => cache.put(url, responses[i])));
+  })());
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "ACTIVATE_UPDATE") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

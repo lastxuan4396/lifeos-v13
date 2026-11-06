@@ -1,3 +1,4 @@
+// lifeos-shell-v17
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -221,7 +222,25 @@ async function initOfflineSupport() {
     return;
   }
   try {
-    await navigator.serviceWorker.register("./sw.js");
+    const registration = await navigator.serviceWorker.register("./sw.js");
+    let updating = false;
+    const showUpdate = () => {
+      if (registration.waiting && navigator.serviceWorker.controller) document.getElementById("updateAvailable").classList.remove("hidden");
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (updating) window.location.reload();
+    });
+    document.getElementById("applyUpdate").addEventListener("click", () => {
+      if (!registration.waiting) return;
+      if (!confirm("网页将重新打开。请先保存正在填写的内容，是否继续？")) return;
+      updating = true;
+      registration.waiting.postMessage({ type: "ACTIVATE_UPDATE" });
+    });
+    registration.addEventListener("updatefound", () => {
+      const worker = registration.installing;
+      if (worker) worker.addEventListener("statechange", () => { if (worker.state === "installed") showUpdate(); });
+    });
+    showUpdate();
     await navigator.serviceWorker.ready;
     status.textContent = "离线页面已准备好；云同步仍需联网。";
   } catch (error) {

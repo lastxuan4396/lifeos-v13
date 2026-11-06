@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- lifeos-shell-v17 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -17,6 +18,10 @@
         数据默认保存在当前浏览器。可导出备份；配置并启用 GitHub Gist 同步后，记录会按同步设置上传。
       </p>
       <p id="offlineStatus" class="data-policy" role="status">正在检查离线功能…</p>
+      <div id="updateAvailable" class="hidden">
+        <p class="data-policy">发现新版本，保存正在填写的内容后可以更新。</p>
+        <button id="applyUpdate" type="button">更新并重新打开</button>
+      </div>
     </header>
 
     <section id="todayAction" class="card hidden" aria-labelledby="todayActionTitle">
