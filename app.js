@@ -1,4 +1,4 @@
-// lifeos-shell-v70
+// lifeos-shell-v71
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -3626,8 +3626,8 @@ function renderAll(entries, outputObj, outputDate) {
     latestOutputText = "";
   }
 
-  let draftPresent = false;
-  try { draftPresent = localStorage.getItem(DRAFT_KEY) !== null; } catch { /* storage may be unavailable */ }
+  let draftPresent = dailyDraftSaveFailed;
+  try { draftPresent ||= localStorage.getItem(DRAFT_KEY) !== null; } catch { draftPresent = true; }
   document.getElementById("outputPending").classList.toggle("hidden", !(draftPresent && latestOutputText));
 
   el.scoreboard.textContent = buildScoreboard(entries);
