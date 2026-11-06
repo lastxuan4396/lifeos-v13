@@ -1,4 +1,4 @@
-// lifeos-shell-v98
+// lifeos-shell-v99
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2344,7 +2344,7 @@ function stableRecordJson(value) {
   });
 }
 
-function dailySavedTime(record) {
+function recordSavedTime(record) {
   const value = record?.createdAt;
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return NaN;
   return Date.parse(value);
@@ -2362,8 +2362,8 @@ function mergeDailyRecords(localList, cloudList, options = {}) {
       const existing = merged.get(key);
       if (!existing) { merged.set(key, record); continue; }
       if (stableRecordJson(existing) === stableRecordJson(record)) continue;
-      const oldTime = dailySavedTime(existing);
-      const newTime = dailySavedTime(record);
+      const oldTime = recordSavedTime(existing);
+      const newTime = recordSavedTime(record);
       if (!Number.isFinite(oldTime) || !Number.isFinite(newTime) || oldTime === newTime) conflicts.set(key, {local: existing, cloud: record});
       else if (newTime > oldTime) merged.set(key, record);
     }
@@ -2419,7 +2419,16 @@ function mergeWeeklyPreservingDuplicates(localList, cloudList) {
   const merged = [];
   for (const group of groups.values()) {
     if (group.local.length <= 1 && group.cloud.length <= 1) {
-      merged.push(...mergeByKey(group.local, group.cloud, weeklySyncKey));
+      const local = group.local[0];
+      const cloud = group.cloud[0];
+      if (!local || !cloud) merged.push(local || cloud);
+      else if (stableRecordJson(local) === stableRecordJson(cloud)) merged.push(local);
+      else {
+        const localTime = recordSavedTime(local);
+        const cloudTime = recordSavedTime(cloud);
+        if (Number.isFinite(localTime) && Number.isFinite(cloudTime) && localTime !== cloudTime) merged.push(cloudTime > localTime ? cloud : local);
+        else merged.push(local, cloud);
+      }
       continue;
     }
     // For ambiguous duplicate keys, preserve the greatest observed number of
@@ -2427,30 +2436,6 @@ function mergeWeeklyPreservingDuplicates(localList, cloudList) {
     merged.push(...mergeAppendOnlyRecords(group.local, group.cloud));
   }
   return merged;
-}
-
-function mergeByKey(localList, cloudList, keyFn) {
-  const map = new Map();
-  const all = [...ensureArray(localList), ...ensureArray(cloudList)];
-
-  all.forEach((item) => {
-    const key = String(keyFn(item) || "");
-    if (!key) {
-      return;
-    }
-    const existing = map.get(key);
-    if (!existing) {
-      map.set(key, item);
-      return;
-    }
-    const existingTs = String(existing?.createdAt || "");
-    const currentTs = String(item?.createdAt || "");
-    if (currentTs >= existingTs) {
-      map.set(key, item);
-    }
-  });
-
-  return Array.from(map.values());
 }
 
 function pickNewestMeta(localMeta, cloudMeta) {
