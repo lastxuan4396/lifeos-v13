@@ -116,7 +116,6 @@ def build_lifeos_url(site: str, date_str: str, usage: List[Tuple[str, float]]) -
     "source": "mac-knowledge",
     "date": date_str,
     "macUsageMinutes": pretty_minutes(total_seconds),
-    "appUsageMinutes": pretty_minutes(total_seconds),
     "topAppName": top_app_name,
     "topAppMinutes": top_app_minutes,
   }
