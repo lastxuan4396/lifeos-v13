@@ -1,4 +1,4 @@
-// lifeos-shell-v103
+// lifeos-shell-v104
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -502,6 +502,7 @@ function bindEvents() {
     if (event.key === STORAGE_KEY || event.key === null) {
       const entries = loadEntries();
       el.scoreboard.textContent = buildScoreboard(entries);
+      renderWeekDays(entries);
       renderTodayAction(entries);
       renderPatchReminder(entries);
       renderHistory(entries);
@@ -4126,6 +4127,7 @@ function renderAll(entries, outputObj, outputDate) {
   document.getElementById("outputPending").classList.toggle("hidden", !(draftPresent && latestOutputText));
 
   el.scoreboard.textContent = buildScoreboard(entries);
+  renderWeekDays(entries);
   renderTodayAction(entries);
   renderPatchReminder(entries);
   renderHistory(entries);
@@ -4314,6 +4316,54 @@ function parseScoreState(value) {
 
 function formatScoreState(value) {
   return value === 1 ? "达成" : value === 0 ? "未达成" : "数据不足";
+}
+
+function renderWeekDays(entries) {
+  const list = document.getElementById("weekDays");
+  const today = localDateISO(new Date());
+  const weekdays = ["日", "一", "二", "三", "四", "五", "六"];
+  const fragment = document.createDocumentFragment();
+  for (let offset = -6; offset <= 0; offset += 1) {
+    const date = shiftDateISO(today, offset);
+    const record = entries.find((item) => item.date === date);
+    const weekday = weekdays[new Date(`${date}T00:00:00`).getDay()];
+    const status = !record ? "未记录" : record.bExecuted === 1 ? "B 已执行" : record.bExecuted === 0 ? "B 未执行" : "B 未判断";
+    const red = record?.ruin === 1;
+    const li = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `week-day${record ? " has-record" : ""}${red ? " is-red" : ""}`;
+    button.setAttribute("aria-label", `${date}，${status}${red ? "，红灯" : ""}，${record ? "查看记录" : "补记"}`);
+    for (const [className, text] of [["week-day-name", offset === 0 ? "今天" : `周${weekday}`], ["week-day-date", date.slice(5).replace("-", "/")], ["week-day-status", `${status}${red ? " · 红灯" : ""}`]]) {
+      const span = document.createElement("span");
+      span.className = className;
+      span.textContent = text;
+      button.appendChild(span);
+    }
+    button.addEventListener("click", () => openWeekDay(date));
+    li.appendChild(button);
+    fragment.appendChild(li);
+  }
+  list.replaceChildren(fragment);
+}
+
+function openWeekDay(date) {
+  if (loadEntries().some((item) => item.date === date)) {
+    loadDailyRecord(date, true);
+    return;
+  }
+  let hasDraft = dailyDraftSaveFailed;
+  try { hasDraft ||= localStorage.getItem(DRAFT_KEY) !== null; }
+  catch { document.getElementById("draftStatus").textContent = "无法读取草稿，暂未切换日期。"; return; }
+  const hasContent = hasDraft || !!(el.behavior.value.trim() || el.result.value.trim() || el.intent.value.trim());
+  if (el.date.value !== date && hasContent && !confirm(`将日期切换为 ${date}。当前输入会保留；请重新选择昨日 B，并核对其他内容。是否继续？`)) return;
+  if (el.date.value !== date) {
+    el.date.value = date;
+    el.date.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  const title = document.getElementById("dailyInputTitle");
+  title.focus({ preventScroll: true });
+  title.scrollIntoView({ block: "start", behavior: "auto" });
 }
 
 function buildScoreboard(entries) {

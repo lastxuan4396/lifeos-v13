@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v103 -->
+<!-- lifeos-shell-v104 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v103.css">
+  <link rel="stylesheet" href="./styles-v104.css">
 </head>
 <body>
   <main class="page">
@@ -421,6 +421,8 @@ RUIN：0
     <section class="grid bottom-grid">
       <article class="card">
         <h2>Scoreboard-5 v1.3（近7天）</h2>
+        <p class="module-note">点有记录的日期可查看；点未记录的日期可补记。</p>
+        <ol id="weekDays" class="week-days" aria-label="近七天记录"></ol>
         <pre id="scoreboard" class="scoreboard">暂无数据</pre>
       </article>
 
@@ -724,6 +726,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v103.js" defer></script>
+  <script src="./app-v104.js" defer></script>
 </body>
 </html>
