@@ -1,4 +1,4 @@
-// lifeos-shell-v100
+// lifeos-shell-v101
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1705,6 +1705,47 @@ function backupTimeDescription(payload) {
   return Number.isNaN(date.getTime()) ? "备份时间未知" : `备份时间（本机时间）：${date.toLocaleString()}`;
 }
 
+function backupDifferenceDescription(incoming) {
+  try {
+    const current = validateBackup(buildBackupPayload());
+    const incomingByDate = new Map(incoming.dailyLogs.map((item) => [item.date, item]));
+    let missingDaily = 0;
+    let changedDaily = 0;
+    for (const item of current.dailyLogs) {
+      const other = incomingByDate.get(item.date);
+      if (!other) missingDaily += 1;
+      else if (stableRecordJson(item) !== stableRecordJson(other)) changedDaily += 1;
+    }
+    const countUnmatched = (existing, next) => {
+      const counts = new Map();
+      for (const record of next) {
+        const key = stableRecordJson(record);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      let unmatched = 0;
+      for (const record of existing) {
+        const key = stableRecordJson(record);
+        const count = counts.get(key) || 0;
+        if (count) counts.set(key, count - 1);
+        else unmatched += 1;
+      }
+      return unmatched;
+    };
+    const weekly = countUnmatched(current.weeklyReviews, incoming.weeklyReviews);
+    const patches = countUnmatched(current.systemPatches, incoming.systemPatches);
+    const metaChanged = stableRecordJson(current.appleSyncMeta) !== stableRecordJson(incoming.appleSyncMeta);
+    return `本机与备份相比：${missingDaily} 条每日记录的日期不在备份中，${changedDaily} 条同日记录内容不同；${weekly} 条周复盘、${patches} 条 Patch 在备份中没有相同内容${metaChanged ? "；设备同步信息不同" : ""}。`;
+  } catch {
+    return "本机数据无法完整校验，暂不能可靠比较差异；请先保留原始数据。";
+  }
+}
+
+function importStateSnapshot(drafts) {
+  const keys = [STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY, APPLE_SYNC_META_KEY];
+  if (drafts) keys.push(DRAFT_KEY, WR_DRAFT_KEY, PATCH_DRAFT_KEY, ...(Object.prototype.hasOwnProperty.call(drafts, "dojo") ? [DOJO_DRAFT_KEY] : []));
+  return JSON.stringify(keys.map((key) => [key, localStorage.getItem(key)]));
+}
+
 async function renderBackupPreview() {
   const request = ++backupPreviewRequest;
   const preview = document.getElementById("backupPreview");
@@ -1721,7 +1762,7 @@ async function renderBackupPreview() {
     const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
     if (request !== backupPreviewRequest) return;
     const draftInfo = restoreDrafts ? (drafts ? `将恢复备份草稿，空草稿会清除本机对应草稿。${Object.prototype.hasOwnProperty.call(drafts, "dojo") ? "" : "备份不含训练输入，本机训练输入会保留。"}` : "备份没有草稿，本机草稿会保留。") : "本机草稿会保留。";
-    preview.textContent = `备份预览：${file.name}；${backupTimeDescription(parsed)}；每日 ${data.dailyLogs.length} 条，周复盘 ${data.weeklyReviews.length} 条，Patch ${data.systemPatches.length} 条；Apple 同步数据${data.appleSyncMeta ? "有" : "无"}。${draftInfo}尚未导入。`;
+    preview.textContent = `备份预览：${file.name}；${backupTimeDescription(parsed)}；每日 ${data.dailyLogs.length} 条，周复盘 ${data.weeklyReviews.length} 条，Patch ${data.systemPatches.length} 条；Apple 同步数据${data.appleSyncMeta ? "有" : "无"}。${backupDifferenceDescription(data)}${draftInfo}尚未导入；确认前会重新比较。`;
   } catch (error) {
     if (request !== backupPreviewRequest) return;
     const reason = error instanceof SyntaxError ? "文件不是有效的 JSON。" : String(error?.message || error);
@@ -1743,11 +1784,15 @@ async function onImportData() {
     const restoreDrafts = document.getElementById("restoreBackupDrafts").checked;
     const drafts = restoreDrafts ? validateBackupDrafts(parsed) : null;
     const draftMessage = restoreDrafts ? (drafts ? `将替换当前每日、周复盘和 Patch 草稿；备份中为空的草稿会清除。${Object.prototype.hasOwnProperty.call(drafts, "dojo") ? "训练输入也会按备份恢复。" : "备份不含训练输入，本机训练输入保持不变。"}` : "该备份没有草稿，本机草稿保持不变。") : "本机草稿保持不变。";
+    const beforeConfirm = importStateSnapshot(drafts);
     const currentCounts = `每日 ${loadEntries().length} 条、周复盘 ${loadCollection(WR_STORAGE_KEY).length} 条、Patch ${loadCollection(PATCH_STORAGE_KEY).length} 条`;
+    const differences = backupDifferenceDescription({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta });
+    if (importStateSnapshot(drafts) !== beforeConfirm) throw new Error("准备比较时本机记录或待恢复草稿发生变化，本次没有导入；请重新核对。");
     const issueMessage = unreadableCollections.size ? `\n部分当前数据无法读取；${[STORAGE_KEY, WR_STORAGE_KEY, PATCH_STORAGE_KEY].some((key) => unreadableCollections.has(key)) ? "上述记录数量不完整；" : ""}导入会覆盖这些原始数据。请先用页面顶部的按钮下载原始数据供恢复。` : "";
     const exportAdvice = unreadableCollections.size ? "确认已保存可用于恢复的原始数据后再继续。" : "建议先导出当前 JSON。";
-    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n${backupTimeDescription(parsed)}。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：${currentCounts}。${issueMessage}\n${draftMessage}\n${exportAdvice}确认覆盖？`);
+    const ok = confirm(`将用 ${file.name} 覆盖当前浏览器的数据。\n${backupTimeDescription(parsed)}。\n备份包含：每日 ${dailyLogs.length} 条、周复盘 ${weeklyReviews.length} 条、Patch ${systemPatches.length} 条。\n当前数据：${currentCounts}。\n${differences}${issueMessage}\n${draftMessage}\n${exportAdvice}确认覆盖？`);
     if (!ok) return;
+    if (importStateSnapshot(drafts) !== beforeConfirm) throw new Error("确认期间本机记录或待恢复草稿发生变化，本次没有导入；请重新核对。");
 
     replaceBackupData({ dailyLogs, weeklyReviews, systemPatches, appleSyncMeta }, drafts);
     if (drafts) restoreImportedDrafts(drafts);
