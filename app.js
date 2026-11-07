@@ -1,4 +1,4 @@
-// lifeos-shell-v102
+// lifeos-shell-v103
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -2709,9 +2709,9 @@ function onBehaviorFromYesterdayB() {
     return;
   }
 
-  const firstStep = getPrimaryBStep(previousEntry);
-  const value = firstStep
-    ? `执行昨日B：${firstStep}`
+  const action = getBBehaviorSummary(previousEntry);
+  const value = action
+    ? `执行昨日B：${action}`
     : `继续昨天这块：${shortenIntentText(previousEntry.behavior || previousEntry.result || "最小动作", 28)}`;
   if (!mayReplaceField(el.behavior, value, "行为")) return;
   el.behavior.value = value;
@@ -2963,6 +2963,16 @@ function getPrimaryBStep(entry) {
     return "";
   }
   return String(entry.output.b[0] || "").trim();
+}
+
+function getBBehaviorSummary(entry) {
+  const steps = Array.isArray(entry?.output?.b)
+    ? entry.output.b.filter((item) => typeof item === "string" && item.trim()).map((item) => item.trim())
+    : [];
+  if (!steps.length) return "";
+  const anchor = /^锚点[:：]/.test(steps[0]) ? steps[0] : "";
+  const action = steps.find((step) => !/^锚点[:：]/.test(step)) || steps[0];
+  return anchor && anchor !== action ? `${anchor} ${action}` : action;
 }
 
 function shouldUseRecoveryLanguage(entry) {
@@ -4164,13 +4174,12 @@ function useTodayAction(markDone = false) {
     return;
   }
   const yesterday = entries.find((item) => item.date === shiftDateISO(today, -1));
-  const steps = Array.isArray(yesterday?.output?.b) ? yesterday.output.b : [];
-  const step = steps.find((item) => typeof item === "string" && item.trim() && !item.trim().startsWith("锚点：")) || getPrimaryBStep(yesterday);
-  if (!step) {
+  const action = getBBehaviorSummary(yesterday);
+  if (!action) {
     hint.textContent = "没有找到昨天生成的行动，请刷新后重试。";
     return;
   }
-  const behavior = `执行今日B：${step}`;
+  const behavior = `执行今日B：${action}`;
   if (el.behavior.value.trim() && el.behavior.value.trim() !== behavior && !confirm("行为栏已有内容，是否用今天的行动替换？")) return;
   el.behavior.value = behavior;
   el.behavior.dispatchEvent(new Event("input", { bubbles: true }));
