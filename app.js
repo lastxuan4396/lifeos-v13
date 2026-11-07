@@ -1,4 +1,4 @@
-// lifeos-shell-v99
+// lifeos-shell-v100
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1631,6 +1631,12 @@ function markDojoOutputStale() {
 function onExportJson() {
   try {
     const backup = buildBackupPayload();
+    let restoreIssue = "";
+    try { validateBackup(backup); }
+    catch (error) {
+      restoreIssue = String(error?.message || error);
+      if (!confirm(`当前记录未通过备份恢复校验：${restoreIssue}\n\n导出的文件会保留原始记录，但需要修复后才能通过当前网页直接导入。是否仍要导出以保留数据？`)) return;
+    }
     let withDrafts = true;
     try { backup.drafts = collectBackupDrafts(); }
     catch (error) {
@@ -1638,9 +1644,10 @@ function onExportJson() {
       if (!confirm(`无法完整备份草稿：${String(error?.message || error)}\n\n是否先导出已保存的记录（不含草稿）？`)) return;
     }
     const text = JSON.stringify(backup, null, 2);
-    const filename = `lifeos-backup-${localDateISO(new Date())}.json`;
+    const filename = `lifeos-${restoreIssue ? "data-recovery" : "backup"}-${localDateISO(new Date())}.json`;
     downloadFile(filename, text, "application/json;charset=utf-8");
-    setModuleOutput(el.dataOutput, `已导出 JSON（${withDrafts ? "含已保存草稿" : "仅记录，不含草稿"}）：${filename}`, "导出/导入结果会显示在这里");
+    const label = restoreIssue ? `已导出数据保留文件（需修复后才能导入；${withDrafts ? "含已保存草稿" : "不含草稿"}）：${filename}\n恢复校验问题：${restoreIssue}` : `已导出 JSON（${withDrafts ? "含已保存草稿" : "仅记录，不含草稿"}）：${filename}`;
+    setModuleOutput(el.dataOutput, label, "导出/导入结果会显示在这里");
   } catch (error) {
     setModuleOutput(el.dataOutput, `导出失败：${String(error?.message || error)}`, "导出/导入结果会显示在这里");
   }
