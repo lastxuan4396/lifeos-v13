@@ -1,4 +1,4 @@
-/* lifeos-shell-v104 */
+/* lifeos-shell-v105 */
 :root {
   --bg: #f4f4ee;
   --ink: #1f1e17;
@@ -672,6 +672,12 @@ button:hover {
 .week-day-date { font-weight: 700; }
 .week-day-status { font-size: 0.69rem; }
 
+.period-comparison { margin-top: 14px; }
+.period-comparison summary { cursor: pointer; font-weight: 700; }
+.comparison-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+.comparison-card { min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: 0.85rem; overflow-wrap: anywhere; }
+.comparison-card p { margin: 6px 0 0; line-height: 1.5; }
+
 .scoreboard {
   margin: 0;
   min-height: 160px;
@@ -742,6 +748,7 @@ button:hover {
 
 @media (max-width: 560px) {
   .week-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .comparison-grid { grid-template-columns: 1fr; }
   button,
   fieldset .inline {
     min-height: 44px;

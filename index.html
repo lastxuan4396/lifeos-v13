@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v104 -->
+<!-- lifeos-shell-v105 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v104.css">
+  <link rel="stylesheet" href="./styles-v105.css">
 </head>
 <body>
   <main class="page">
@@ -424,6 +424,18 @@ RUIN：0
         <p class="module-note">点有记录的日期可查看；点未记录的日期可补记。</p>
         <ol id="weekDays" class="week-days" aria-label="近七天记录"></ol>
         <pre id="scoreboard" class="scoreboard">暂无数据</pre>
+        <details class="period-comparison">
+          <summary>比较两个 7 天周期</summary>
+          <p class="module-note">每次向前或向后移动 7 天；B 只统计明确填写了执行状态的记录。</p>
+          <div class="actions">
+            <button id="comparisonPrevious" type="button">前 7 天</button>
+            <button id="comparisonNext" type="button">后 7 天</button>
+            <button id="comparisonReset" type="button">回到近 7 天</button>
+          </div>
+          <div id="periodComparison" class="comparison-grid" aria-live="polite"></div>
+          <p class="module-note">记录天数或 B 可判断天数不同时，请结合覆盖情况看数字，不将空白当作未执行。</p>
+          <button id="comparisonToReview" type="button">用所选 7 天做周复盘</button>
+        </details>
       </article>
 
       <article class="card">
@@ -444,7 +456,7 @@ RUIN：0
     <section class="card flow-card">
       <h2>完整流程工作台（周 / 双周 / 月 / 训练）</h2>
       <p class="flow-intro">日常只跑 DL-30；下面 4 个模块按节奏触发，默认折叠，不占空间。</p>
-      <details class="flow-block">
+      <details class="flow-block" id="wrDetails">
         <summary>WR-10（每周 10 分钟）<span id="wrDraftBadge" class="hidden"> · 有草稿</span></summary>
         <form id="wrForm" class="mini-form" autocomplete="off">
           <p id="wrDraftStatus" class="module-note" role="status">填写时自动保存草稿到当前浏览器。</p>
@@ -726,6 +738,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v104.js" defer></script>
+  <script src="./app-v105.js" defer></script>
 </body>
 </html>

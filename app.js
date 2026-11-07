@@ -1,4 +1,4 @@
-// lifeos-shell-v104
+// lifeos-shell-v105
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -65,6 +65,7 @@ let latestDojoStarterText = "";
 let syncQueue = Promise.resolve();
 let syncSettingsSnapshot = null;
 let historyLimit = 12;
+let comparisonEndISO = "";
 let backupPreviewRequest = 0;
 const unreadableCollections = new Set();
 let dailyDraftSnapshot = null;
@@ -503,6 +504,7 @@ function bindEvents() {
       const entries = loadEntries();
       el.scoreboard.textContent = buildScoreboard(entries);
       renderWeekDays(entries);
+      renderPeriodComparison(entries);
       renderTodayAction(entries);
       renderPatchReminder(entries);
       renderHistory(entries);
@@ -557,6 +559,22 @@ function bindEvents() {
     historyLimit = 12;
     renderHistory(loadEntries());
   });
+  document.getElementById("comparisonPrevious")?.addEventListener("click", () => {
+    const end = comparisonEndISO || localDateISO(new Date());
+    comparisonEndISO = shiftDateISO(end, -7);
+    renderPeriodComparison(loadEntries());
+  });
+  document.getElementById("comparisonNext")?.addEventListener("click", () => {
+    const today = localDateISO(new Date());
+    const next = shiftDateISO(comparisonEndISO || today, 7);
+    comparisonEndISO = next >= today ? "" : next;
+    renderPeriodComparison(loadEntries());
+  });
+  document.getElementById("comparisonReset")?.addEventListener("click", () => {
+    comparisonEndISO = "";
+    renderPeriodComparison(loadEntries());
+  });
+  document.getElementById("comparisonToReview")?.addEventListener("click", useComparisonPeriodForReview);
 
   if (el.date) {
     el.date.addEventListener("change", () => {
@@ -4128,6 +4146,7 @@ function renderAll(entries, outputObj, outputDate) {
 
   el.scoreboard.textContent = buildScoreboard(entries);
   renderWeekDays(entries);
+  renderPeriodComparison(entries);
   renderTodayAction(entries);
   renderPatchReminder(entries);
   renderHistory(entries);
@@ -4364,6 +4383,60 @@ function openWeekDay(date) {
   const title = document.getElementById("dailyInputTitle");
   title.focus({ preventScroll: true });
   title.scrollIntoView({ block: "start", behavior: "auto" });
+}
+
+function comparisonPeriod() {
+  const end = comparisonEndISO || localDateISO(new Date());
+  return { start: shiftDateISO(end, -6), end };
+}
+
+function renderPeriodComparison(entries) {
+  const current = comparisonPeriod();
+  const previousEnd = shiftDateISO(current.start, -1);
+  const previous = { start: shiftDateISO(previousEnd, -6), end: previousEnd };
+  const container = document.getElementById("periodComparison");
+  const fragment = document.createDocumentFragment();
+  for (const [label, period] of [["所选周期", current], ["前一个周期", previous]]) {
+    const rows = entries.filter((entry) => entry.date >= period.start && entry.date <= period.end);
+    const card = document.createElement("section");
+    card.className = "comparison-card";
+    const title = document.createElement("strong");
+    title.textContent = `${label}：${period.start} 至 ${period.end}`;
+    card.appendChild(title);
+    const info = document.createElement("p");
+    if (new Set(rows.map((entry) => entry.date)).size !== rows.length) {
+      info.textContent = "同一天存在多条记录，暂不能可靠统计；请先导出备份并检查数据。";
+    } else {
+      const snapshot = getScoreSnapshot(rows, period);
+      const execution = snapshot.bObserved ? `B 已执行 ${snapshot.b} / ${snapshot.bObserved} 天可判断` : "B 暂无可判断记录";
+      info.textContent = `记录 ${snapshot.dl} / 7 天 · ${execution} · 已记录红灯 ${snapshot.ruinDays} 天`;
+    }
+    card.appendChild(info);
+    fragment.appendChild(card);
+  }
+  container.replaceChildren(fragment);
+  const isLatest = !comparisonEndISO || comparisonEndISO >= localDateISO(new Date());
+  document.getElementById("comparisonNext").disabled = isLatest;
+  document.getElementById("comparisonReset").disabled = isLatest;
+}
+
+function useComparisonPeriodForReview() {
+  const { start, end } = comparisonPeriod();
+  const next = `${start} ~ ${end}`;
+  if (el.wrWeekRange.value.trim() !== next) {
+    let hasDraft = workflowDraftSaveFailed.has(WR_DRAFT_KEY);
+    try { hasDraft ||= localStorage.getItem(WR_DRAFT_KEY) !== null; }
+    catch { document.getElementById("wrPeriodStatus").textContent = "无法读取周复盘草稿，未更改周期。"; return; }
+    const data = getWrData();
+    const hasContent = hasDraft || [data.bestAction, data.worstLeak, data.ifThen, data.priority, data.expName, data.expHypothesis, data.expAction, data.expMetric, data.oneChange].some(Boolean) || wrScoreTouched.size > 0;
+    if (hasContent && !confirm(`将周复盘周期改为 ${next}。现有内容与指标会保留，请核对后再按周期带入。是否继续？`)) return;
+    el.wrWeekRange.value = next;
+    el.wrWeekRange.dispatchEvent(new Event("input", { bubbles: true }));
+    document.getElementById("wrPeriodStatus").textContent = `已选择 ${next}；现有内容与指标未变，可按周期重新带入。`;
+  }
+  document.getElementById("wrDetails").open = true;
+  el.wrWeekRange.focus({ preventScroll: true });
+  el.wrWeekRange.scrollIntoView({ block: "center", behavior: "auto" });
 }
 
 function buildScoreboard(entries) {
