@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<!-- lifeos-shell-v105 -->
+<!-- lifeos-shell-v106 -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>LifeOS v1.3 - Daily Engine</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./styles-v105.css">
+  <link rel="stylesheet" href="./styles-v106.css">
 </head>
 <body>
   <main class="page">
     <header class="hero">
       <p class="eyebrow">PLAYBOOK ENGINE</p>
       <h1>LifeOS v1.3 Daily Engine</h1>
-      <p class="subtitle">单入口：只填 DL-30，自动生成 A/B/C/D。你只执行 B。</p>
+      <p class="subtitle">每天记下做了什么，系统帮你整理明天的一小步。</p>
       <p class="data-policy">
         数据默认保存在当前浏览器。可导出备份；配置并启用 GitHub Gist 同步后，记录会按同步设置上传。
       </p>
@@ -144,14 +144,14 @@ RUIN：0
 
     <section class="grid">
       <article class="card input-card">
-        <h2 id="dailyInputTitle" tabindex="-1">DL-30 输入</h2>
+        <h2 id="dailyInputTitle" tabindex="-1">今天的记录</h2>
         <div class="mode-switch" role="tablist" aria-label="输入模式">
           <button id="modeQuick" type="button" class="active" aria-pressed="true">Quick Mode</button>
           <button id="modeFull" type="button" aria-pressed="false">Full Mode</button>
         </div>
         <div id="quickModeBanner" class="hint-card quick-mode-banner">
-          <strong>Quick Mode：今天只判断 3 件事</strong>
-          <p class="hint-copy">1）昨天的 B 做没做 2）今天有没有红灯 3）结果一句话。其他都交给系统。</p>
+          <strong>简单记三件事</strong>
+          <p class="hint-copy">写下今天的行动和结果，再选择昨天的小行动是否完成。红灯表示今天需要先保底。</p>
         </div>
         <div id="pendingBridge" class="hint-card hidden" role="status">
           <strong>有一份待处理的设备数据</strong>
@@ -173,6 +173,7 @@ RUIN：0
               <button id="loadOtherDailyDraft" type="button">载入另一份草稿</button>
             </div>
           </div>
+          <details class="daily-options"><summary>日期与草稿选项 · <span id="dailyDateSummary"></span></summary>
           <div class="actions"><button id="discardDailyDraft" type="button">清空未提交内容</button></div>
           <label>
             日期
@@ -185,18 +186,20 @@ RUIN：0
           <p id="dateSwitchHint" class="module-note" role="status"></p>
           <p id="loadDailyHint" class="module-note">所选日期暂无保存的记录。</p>
 
+          </details>
+
           <label>
-            行为（动词+对象+时长/次数）
+            今天做了什么（行动与时长）
             <input id="behavior" name="behavior" type="text" placeholder="例：写论文提纲 20 分钟" required>
           </label>
 
           <label>
-            结果（完成/产出/指标）
+            结果（完成了什么）
             <input id="result" name="result" type="text" placeholder="例：完成一页提纲" required>
           </label>
 
           <fieldset>
-            <legend>昨日B执行</legend>
+            <legend>昨天的小行动（B）完成了吗？</legend>
             <label class="inline">
               <input type="radio" name="bExecuted" value="1" required>
               1（已执行）
@@ -225,7 +228,7 @@ RUIN：0
           </div>
 
           <fieldset>
-            <legend>RUIN</legend>
+            <legend>今天是否需要进入红灯保底模式？</legend>
             <label class="inline">
               <input type="radio" name="ruin" value="0" checked>
               0（无红灯）
@@ -424,6 +427,11 @@ RUIN：0
         <p class="module-note">点有记录的日期可查看；点未记录的日期可补记。</p>
         <ol id="weekDays" class="week-days" aria-label="近七天记录"></ol>
         <pre id="scoreboard" class="scoreboard">暂无数据</pre>
+        <details class="period-comparison" id="trendDetails">
+          <summary>近 4 周趋势</summary>
+          <p class="module-note">按今天往前每 7 天分组；只统计已有记录，B 的分母是可判断天数。</p>
+          <div id="weeklyTrend" class="trend-list" aria-live="polite"></div>
+        </details>
         <details class="period-comparison">
           <summary>比较两个 7 天周期</summary>
           <p class="module-note">每次向前或向后移动 7 天；B 只统计明确填写了执行状态的记录。</p>
@@ -478,10 +486,18 @@ RUIN：0
           <label>从已保存的周复盘中选择
             <select id="savedWeeklyPicker" disabled><option value="">暂无已保存的周复盘</option></select>
           </label>
+
           <label>
             本周最有效动作（1条）
             <input id="wrBestAction" name="wrBestAction" type="text" placeholder="例：每天晨间 15 分钟写作" required>
           </label>
+          <label>
+            下周唯一改动（只改1条）
+            <input id="wrOneChange" name="wrOneChange" type="text" placeholder="例：晚上 23:30 手机不进卧室" required>
+          </label>
+          <div class="actions"><button id="saveLightReview" type="button" class="primary">生成并保存轻量复盘</button><button id="copyWrOutput" type="button">复制复盘结果</button></div>
+          <p id="lightReviewStatus" class="module-note" role="status">只需填写上面两项；保存时会带入所选周期的记录统计。</p>
+          <details class="full-review"><summary>展开完整周复盘</summary>
           <label>
             本周最大浪费/失控（1条）
             <input id="wrWorstLeak" name="wrWorstLeak" type="text" placeholder="例：夜间刷手机导致晚睡" required>
@@ -520,10 +536,7 @@ RUIN：0
             </div>
           </div>
 
-          <label>
-            下周唯一改动（只改1条）
-            <input id="wrOneChange" name="wrOneChange" type="text" placeholder="例：晚上 23:30 手机不进卧室" required>
-          </label>
+
 
           <div class="micro-card">
             <strong>Scoreboard-5（可手填，也可一键带入近7天）</strong>
@@ -568,9 +581,9 @@ RUIN：0
             <button id="wrPeriodAutofill" type="button">按复盘周期带入</button>
             <button id="wrAutofill" type="button">一键带入近7天</button>
             <button type="submit" class="primary">生成 WR-10 结果</button>
-            <button id="copyWrOutput" type="button">复制 WR-10</button>
           </div>
           <p id="wrAutofillStatus" class="module-note" role="status">可按上方周期带入；近 7 天包含今天及之前 6 天，可能与周期不同。</p>
+          </details>
         </form>
         <p id="wrOutputPending" class="module-note hidden" role="status">下方是先前保存的周复盘结果，可能与当前输入不同；请载入对应记录或重新生成。</p>
         <pre id="wrOutput" class="module-output empty">提交 WR-10 后显示周总结与下周执行稿</pre>
@@ -738,6 +751,6 @@ RUIN：0
     </article>
   </template>
 
-  <script src="./app-v105.js" defer></script>
+  <script src="./app-v106.js" defer></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-/* lifeos-shell-v105 */
+/* lifeos-shell-v106 */
 :root {
   --bg: #f4f4ee;
   --ink: #1f1e17;
@@ -786,3 +786,11 @@ button:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.daily-options, .full-review { margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+.daily-options summary, .full-review summary { cursor: pointer; font-weight: 700; }
+.trend-list { display: grid; gap: 8px; margin-top: 10px; }
+.trend-row { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font-size: .85rem; overflow-wrap: anywhere; }
+@media (max-width: 600px) { .hero .eyebrow, .hero .subtitle { display: none; } .hero h1 { font-size: 1.45rem; } .hero .data-policy { font-size: .76rem; } .page { padding-top: 12px; } }
+
+select { max-width: 100%; min-width: 0; }

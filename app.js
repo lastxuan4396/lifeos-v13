@@ -1,4 +1,4 @@
-// lifeos-shell-v105
+// lifeos-shell-v106
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -505,6 +505,7 @@ function bindEvents() {
       el.scoreboard.textContent = buildScoreboard(entries);
       renderWeekDays(entries);
       renderPeriodComparison(entries);
+      renderWeeklyTrend(entries);
       renderTodayAction(entries);
       renderPatchReminder(entries);
       renderHistory(entries);
@@ -747,6 +748,7 @@ function bindEvents() {
 
   if (el.wrForm) {
     el.wrForm.addEventListener("submit", onWrSubmit);
+    document.getElementById("saveLightReview").addEventListener("click", saveLightReview);
     ["input", "change"].forEach((eventName) => el.wrForm.addEventListener(eventName, (event) => {
       if (WR_SCORE_FIELDS.has(event.target.name)) {
         wrScoreTouched.add(event.target.name);
@@ -925,6 +927,7 @@ function renderDailyRecordAvailability() {
   const button = document.getElementById("loadDailyRecord");
   const hint = document.getElementById("loadDailyHint");
   if (!button || !hint) return;
+  document.getElementById("dailyDateSummary").textContent = el.date.value === localDateISO(new Date()) ? `今天 ${el.date.value}` : `所选日期 ${el.date.value}`;
   document.getElementById("useTodayDate").disabled = el.date.value === localDateISO(new Date());
   button.disabled = !record;
   hint.textContent = record ? `${record.date} 已有记录，可以载入后修改。` : "所选日期暂无保存的记录。";
@@ -1413,7 +1416,7 @@ function loadWeeklyRecord(period, chosenIndex = null, signature = null) {
   latestWrOutputText = typeof record.outputText === "string" ? record.outputText : "";
   setModuleOutput(el.wrOutput, latestWrOutputText, "此周期尚无保存的周复盘结果。");
   saveWorkflowDraft(el.wrForm, WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
-  document.getElementById("wrOutputPending").classList.toggle("hidden", !latestWrOutputText || buildWrOutput(getWrData()) === latestWrOutputText);
+  document.getElementById("wrOutputPending").classList.add("hidden");
   renderWeeklyAvailability();
 }
 
@@ -3923,15 +3926,19 @@ function buildWrOutput(data) {
     outputPass: data.outputPass
   };
 
-  const mechanism = inferMechanism(score.bObserved ?? 0, score.b, score.ruinDays, score.codeCount, score.outputPass);
+  const mechanism = score.bObserved < 3 && score.ruinDays < 2 ? "数据不足，暂不能判断" : inferMechanism(score.bObserved ?? 0, score.b, score.ruinDays, score.codeCount, score.outputPass);
   const nextChange = data.oneChange || inferNextChange(score.dl, score.b, score.codeCount);
 
   const weeklyMode = score.ruinDays >= 2
-    ? "本周进入红灯偏高区：下周必须先保底线，再追求推进速度。"
+    ? "已记录的红灯至少有 2 天：下周先保底线，再追求推进速度。"
+    : score.dl < 7
+    ? `本周仅记录 ${score.dl} 天，数据不足，暂不能判断整体状态。`
     : "本周处于可推进区：保持小步高频，避免加码过度。";
 
   const riskDefense = score.ruinDays >= 2
     ? "风险点：红灯频率偏高会导致节奏崩盘。防线：下周前3天只跑<=15分钟最小行动，不开新目标。"
+    : score.dl < 7
+    ? "记录不足，暂不推断主要风险；可以先继续记录。"
     : "风险点：追求完美会拖慢执行。防线：每天只交付一小块，可见即可。";
 
   const lines = [
@@ -3948,9 +3955,9 @@ function buildWrOutput(data) {
     `6) 下周唯一改动：${nextChange}`,
     "",
     "[Scoreboard-5 v1.3]",
-    `DL完成 ${score.dl}/7 | B执行 ${score.b}/7（可判断 ${score.bObserved ?? "未知"} 天） | 红灯天数 ${score.ruinDays}/7（主码：S${score.codeCount.S} T${score.codeCount.T} P${score.codeCount.P}）`,
+    `记录 ${score.dl}/7 天 | B执行 ${score.b} / ${score.bObserved ?? "未知"} 天可判断 | 已记录红灯 ${score.ruinDays} 天（主码：S${score.codeCount.S} T${score.codeCount.T} P${score.codeCount.P}）`,
     `Sleep底线 ${formatScoreState(score.sleepPass)} | Training ${formatScoreState(score.trainingPass)} | Output ${formatScoreState(score.outputPass)}`,
-    `机制一句话：本周主要被 ${mechanism} 驱动`,
+    `机制观察：${mechanism}`,
     `下周唯一改动：只改 ${nextChange}`,
     "",
     "A) 模式判断",
@@ -4147,6 +4154,7 @@ function renderAll(entries, outputObj, outputDate) {
   el.scoreboard.textContent = buildScoreboard(entries);
   renderWeekDays(entries);
   renderPeriodComparison(entries);
+  renderWeeklyTrend(entries);
   renderTodayAction(entries);
   renderPatchReminder(entries);
   renderHistory(entries);
@@ -4439,14 +4447,84 @@ function useComparisonPeriodForReview() {
   el.wrWeekRange.scrollIntoView({ block: "center", behavior: "auto" });
 }
 
+function renderWeeklyTrend(entries) {
+  const container = document.getElementById("weeklyTrend");
+  const fragment = document.createDocumentFragment();
+  const today = localDateISO(new Date());
+  for (let i = 3; i >= 0; i -= 1) {
+    const end = shiftDateISO(today, -7 * i);
+    const start = shiftDateISO(end, -6);
+    const rows = entries.filter((entry) => entry.date >= start && entry.date <= end);
+    const card = document.createElement("div");
+    card.className = "trend-row";
+    const title = document.createElement("strong");
+    title.textContent = `${start.slice(5)} 至 ${end.slice(5)}${i === 0 ? "（近 7 天）" : ""}`;
+    const info = document.createElement("span");
+    if (new Set(rows.map((entry) => entry.date)).size !== rows.length) {
+      info.textContent = "同一天有多条记录，暂不能可靠统计";
+    } else {
+      const snap = getScoreSnapshot(rows, {start, end});
+      info.textContent = `记录 ${snap.dl}/7 天 · B ${snap.bObserved ? `${snap.b}/${snap.bObserved} 天可判断` : "暂无可判断记录"} · 已记录红灯 ${snap.ruinDays} 天`;
+    }
+    card.append(title, info);
+    fragment.appendChild(card);
+  }
+  container.replaceChildren(fragment);
+}
+
+function saveLightReview() {
+  const status = document.getElementById("lightReviewStatus");
+  const data = getWrData();
+  const period = parseWeeklyPeriod(data.weekRange);
+  if (!period) { status.textContent = "请先填写连续 7 天的复盘周期。"; return; }
+  if (!data.bestAction || !data.oneChange) { status.textContent = "请先填写本周最有效动作和下周唯一改动。"; return; }
+  const entries = loadCollection(WR_STORAGE_KEY);
+  const matches = matchingWeeklyRecords(entries, data.weekRange);
+  let replaceIndex = -1;
+  if (matches.length) {
+    if (!selectedWeeklyRecord || selectedWeeklyRecord.weekRange !== data.weekRange || JSON.stringify(entries[selectedWeeklyRecord.index]) !== selectedWeeklyRecord.signature || entries[selectedWeeklyRecord.index]?.reviewMode !== "light") {
+      status.textContent = "此周期已有周复盘。请先载入轻量复盘再修改；完整复盘请展开完整表单保存。"; return;
+    }
+    replaceIndex = selectedWeeklyRecord.index;
+    if (!confirm("将更新已载入的轻量周复盘，是否继续？")) return;
+  }
+  const previous = replaceIndex >= 0 ? entries[replaceIndex] : null;
+  const scoreFields = ["dlDone", "bDone", "bObserved", "ruinDays", "codeS", "codeT", "codeP", "sleepPass", "trainingPass", "outputPass"];
+  const advancedScoresChanged = scoreFields.some((key) => data[key] !== (previous ? (previous[key] ?? null) : (["bObserved", "sleepPass", "trainingPass", "outputPass"].includes(key) ? null : 0)));
+  if ([data.worstLeak, data.ifThen, data.priority, data.expName, data.expHypothesis, data.expAction, data.expMetric].some(Boolean) || advancedScoresChanged) {
+    status.textContent = "完整复盘中已有填写或修改的内容，请展开完整表单保存，避免遗漏。"; return;
+  }
+  const dailyEntries = loadEntries();
+  if (unreadableCollections.has(STORAGE_KEY)) { status.textContent = "每日记录无法读取，暂不能生成统计；请先按页面提示保留原始数据。"; return; }
+  const rows = dailyEntries.filter((item) => item.date >= period.start && item.date <= period.end);
+  if (new Set(rows.map((item) => item.date)).size !== rows.length) { status.textContent = "此周期有重复日期的记录，暂不能可靠统计。请先检查数据。"; return; }
+  const snap = getScoreSnapshot(rows, period);
+  Object.assign(data, {dlDone:snap.dl, bDone:snap.b, bObserved:snap.bObserved, ruinDays:snap.ruinDays, codeS:snap.codeCount.S, codeT:snap.codeCount.T, codeP:snap.codeCount.P, sleepPass:snap.sleepPass, trainingPass:snap.trainingPass, outputPass:snap.outputPass});
+  const outputText = [`轻量周复盘 | ${data.weekRange}`, `本周最有效动作：${data.bestAction}`, `下周唯一改动：${data.oneChange}`, `记录 ${snap.dl}/7 天 · B ${snap.bObserved ? `${snap.b}/${snap.bObserved} 天可判断` : "暂无可判断记录"} · 已记录红灯 ${snap.ruinDays} 天`, snap.dl < 7 ? "记录不足，暂不能判断整体状态。" : "以上仅为已记录的情况，请结合实际理解。"].join("\n");
+  const savedReview = {...data, outputText, createdAt:new Date().toISOString(), reviewMode:"light"};
+  const next = entries.slice();
+  if (replaceIndex >= 0) next.splice(replaceIndex, 1);
+  next.unshift(savedReview);
+  try { saveCollection(WR_STORAGE_KEY, next); }
+  catch { status.textContent = "保存失败，请先复制内容并检查浏览器存储空间。"; return; }
+  latestWrOutputText = outputText;
+  selectedWeeklyRecord = null;
+  setModuleOutput(el.wrOutput, outputText, "");
+  document.getElementById("wrOutputPending").classList.add("hidden");
+  clearWorkflowDraft(WR_DRAFT_KEY, "wrDraftStatus", "wrDraftBadge");
+  renderWeeklyAvailability();
+  status.textContent = "轻量复盘已保存。再次修改请先载入对应周期。";
+  void maybeAutoSync("WR-10");
+}
+
 function buildScoreboard(entries) {
   const snap = getScoreSnapshot(entries);
 
   return [
-    `DL完成 ${snap.dl}/7 | B执行 ${snap.b}/7（可判断 ${snap.bObserved} 天） | 红灯天数 ${snap.ruinDays}/7（主码：S${snap.codeCount.S} T${snap.codeCount.T} P${snap.codeCount.P}）`,
+    `记录 ${snap.dl}/7 天 | B执行 ${snap.b} / ${snap.bObserved} 天可判断 | 已记录红灯 ${snap.ruinDays} 天（主码：S${snap.codeCount.S} T${snap.codeCount.T} P${snap.codeCount.P}）`,
     `Sleep底线 ${formatScoreState(snap.sleepPass)} | Training ${formatScoreState(snap.trainingPass)} | Output ${formatScoreState(snap.outputPass)}`,
-    `机制一句话：本周主要被 ${snap.mechanism} 驱动`,
-    `下周唯一改动：只改 ${snap.nextChange}`
+    `机制观察：${snap.bObserved < 3 && snap.ruinDays < 2 ? "记录不足，暂不能判断" : snap.mechanism}`,
+    `下周建议：${snap.dl < 3 ? "先继续记录，积累观察" : snap.nextChange}`
   ].join("\n");
 }
 
