@@ -1,4 +1,4 @@
-// lifeos-shell-v101
+// lifeos-shell-v102
 const STORAGE_KEY = "lifeos_v13_entries";
 const WR_STORAGE_KEY = "lifeos_v13_wr_entries";
 const PATCH_STORAGE_KEY = "lifeos_v13_patch_entries";
@@ -1107,7 +1107,6 @@ function onZeroDay() {
   }
 
   entry.zeroDay = true;
-  entry.intent = "";
   entry.ruinCodes = entry.ruin === 1 ? entry.ruinCodes : [];
   if (entry.ruin === 1 && entry.ruinCodes.length === 0) {
     alert("RUIN=1 时，请至少勾选一个 RUIN 码（S/T/P）。");
